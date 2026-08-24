@@ -609,7 +609,8 @@ def save_summary(state: State):
     )
 
     return state
-
+def save_pdf_final(state:STATE):
+    pass
 # ============================================================
 # HELPER
 # SAVE EACH STEP
@@ -1178,7 +1179,18 @@ def build_graph_langchain():
         "analyze_transcript",
         analyze_transcript
     )
-
+    builder.add_node(
+            "generate_summary",
+            generate_summary
+        )
+    builder.add_node(
+                "save_summary",
+                save_summary
+            )
+    builder.add_node(
+                    "save_pdf_final",
+                    save_pdf_final
+                )
     builder.add_node(
         "save_markdown",
         save_markdown
@@ -1217,6 +1229,17 @@ def build_graph_langchain():
         "get_youtube_transcript",
         "analyze_transcript"
     )
+
+    builder.add_edge(
+        "analyze_transcript",
+        "generate_summary"
+    )
+
+     builder.add_edge(
+            "generate_summary",
+            "save_summary"
+        )
+     builder.add_edge("save_summary",END)
 
     builder.add_edge(
         "analyze_transcript",
