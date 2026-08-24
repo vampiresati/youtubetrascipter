@@ -10,7 +10,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from youtubetranscripter import get_transcript_from_url
 
-from IPython.display import Image, display, Markdown
+from IPython.display import Image, display
 
 
 # ============================================================
@@ -50,16 +50,16 @@ PDF_FILE = (
     OUTPUT_PATH / "summary.pdf"
 )
 
-# ============================================================
-# TRANSCRIPT -> MERMAID FILES
-# ============================================================
+# ------------------------------------------------------------
+# Transcript Mermaid output
+# ------------------------------------------------------------
 
 MERMAID_FILE = (
-    OUTPUT_PATH / "transcript_workflow.mmd"
+    OUTPUT_PATH / "transcript_graph.md"
 )
 
-MERMAID_MARKDOWN_FILE = (
-    OUTPUT_PATH / "transcript_workflow.md"
+MERMAID_PNG_FILE = (
+    OUTPUT_PATH / "transcript_graph.png"
 )
 
 
@@ -163,14 +163,14 @@ class State(BaseModel):
     pdf_file: str = ""
 
     # --------------------------------------------------------
-    # Transcript -> Mermaid
+    # Mermaid generated from transcript
     # --------------------------------------------------------
 
     mermaid_code: str = ""
 
     mermaid_file: str = ""
 
-    mermaid_markdown_file: str = ""
+    mermaid_png_file: str = ""
 
 
 # ============================================================
@@ -612,7 +612,7 @@ Create the summary.
 
 # ============================================================
 # PROMPT 5
-# TRANSCRIPT -> MERMAID WORKFLOW
+# TRANSCRIPT -> MERMAID GRAPH
 # ============================================================
 
 mermaid_prompt = ChatPromptTemplate.from_messages(
@@ -620,280 +620,102 @@ mermaid_prompt = ChatPromptTemplate.from_messages(
         (
             "system",
             """
-You are an expert workflow architect, AI agent architect,
-and Mermaid diagram generator.
+You are an expert AI architecture designer and Mermaid
+diagram generator.
 
-Your task is to read a YouTube transcript and reconstruct
-the ACTUAL WORKFLOW described by the speaker.
+Your task is to read the ORIGINAL VIDEO TRANSCRIPT and
+extract the workflow, architecture, branching, loops,
+parallel execution, delegation, and relationships that
+are explicitly described in the transcript.
 
-The output will be used as a Mermaid flowchart.
+Generate ONE Mermaid flowchart representing the technical
+workflow described in the transcript.
 
-============================================================
-IMPORTANT
-============================================================
+IMPORTANT:
 
-Do NOT summarize the transcript.
+- Generate the graph FROM THE TRANSCRIPT.
+- Do NOT generate a graph of the Python program processing
+  the transcript.
+- Identify the actual technical workflow taught in the video.
+- Identify branches.
+- Identify sequential workflows.
+- Identify parallel workflows.
+- Identify loops.
+- Identify router/dispatcher decisions.
+- Identify agents and their relationships.
+- Preserve important technical names.
+- Include all nine AI agent patterns if they are present.
+- Do not invent patterns that are not in the transcript.
+- Do not invent functionality.
+- Do not invent technologies.
+- Remove duplicated speech.
 
-Do NOT create a simple numbered list.
+The transcript discusses nine AI agent design patterns.
 
-Instead, understand the workflow and represent its structure.
-
-Identify:
-
-- sequential steps
-- branches
-- decisions
-- conditional paths
-- loops
-- retry loops
-- parallel execution
-- multiple agents
-- tools
-- memory
-- state
-- routers
-- dispatchers
-- specialists
-- workers
-- critics
-- planners
-- executors
-- researchers
-- synthesizers
-- consolidators
-- inputs
-- outputs
-- handoffs between agents
-
-============================================================
-SEQUENTIAL FLOW
-============================================================
-
-For sequential execution use:
-
-A --> B
-
-============================================================
-DECISIONS
-============================================================
-
-If the transcript describes a decision:
-
-A --> B{"Decision?"}
-
-Then create branches:
-
-B -->|Yes| C
-B -->|No| D
-
-============================================================
-LOOPS
-============================================================
-
-If the transcript describes something that repeats:
-
-A --> B
-B --> C{"Approved?"}
-C -->|No| A
-C -->|Yes| D
-
-============================================================
-PARALLEL EXECUTION
-============================================================
-
-If several agents execute independently or in parallel:
-
-A --> B
-A --> C
-A --> D
-
-Then converge:
-
-B --> E
-C --> E
-D --> E
-
-============================================================
-ROUTER / DISPATCHER
-============================================================
-
-For routing:
-
-A --> B{"Question Type?"}
-
-B -->|VAT| C["VAT Specialist"]
-B -->|Corporate Tax| D["Corporate Tax Specialist"]
-B -->|Payroll| E["Payroll Specialist"]
-
-============================================================
-MEMORY / STATE
-============================================================
-
-If the transcript describes memory or state, represent it.
-
-For example:
-
-A["Client Query"]
-    --> B["Client History"]
-    --> C["Client Account Agent"]
-
-============================================================
-MULTIPLE PATTERNS
-============================================================
-
-The transcript may contain multiple AI agent patterns.
-
-Use Mermaid subgraphs when appropriate.
-
-For example:
-
-subgraph P1["Pattern 1 - Single Agent"]
-    A --> B
-end
-
-subgraph P2["Pattern 2 - ReAct"]
-    C --> D
-end
-
-============================================================
-PATTERNS
-============================================================
-
-If supported by the transcript, identify patterns such as:
-
-1. Single Agent
-2. ReAct
-3. Structured Output
-4. Memory Augmented Agent
-5. Reflection / Self Critic
-6. Plan and Execute
-7. Router / Dispatcher
-8. Parallel Research
-9. Orchestrator / Worker
-
-Do not automatically create all nine.
-
-Only create patterns supported by the transcript.
-
-============================================================
-AGENTS
-============================================================
-
-Represent important agents as nodes.
-
-Examples:
-
-["Invoice Agent"]
-["Tax Researcher"]
-["Tax Return Actor"]
-["Tax Return Critic"]
-["Audit Planner"]
-["Document Collector"]
-["Account Reconciler"]
-["Risk Flagger"]
-["VAT Specialist"]
-["Tax Specialist"]
-["Payroll Specialist"]
-["Synthesizer"]
-["Invoice Worker"]
-["Tax Worker"]
-["Report Generator"]
-["Final Consolidator"]
-
-============================================================
-TOOLS
-============================================================
-
-If tools are an important part of the workflow, represent
-them as nodes.
-
-Examples:
-
-["Docling"]
-["Calculate VAT"]
-["Calculate Total"]
-
-============================================================
-VERY IMPORTANT
-============================================================
-
-Do NOT invent workflow relationships.
-
-Only create relationships supported by the transcript.
-
-Correct obvious speech-to-text errors when the meaning
-is clear.
-
-Preserve important technical names such as:
-
-- Google ADK
-- Pydantic
-- Docling
-- Gemini
-- VAT
-- Tax Researcher
-- Invoice Agent
-- Tax Return Actor
-- Tax Return Critic
-- Audit Planner
-- Document Collector
-- Account Reconciler
-- Risk Flagger
-- VAT Specialist
-- Tax Specialist
-- Payroll Specialist
-- Netherlands
-- Germany
-- UK
-- Synthesizer
-- Invoice Worker
-- Tax Worker
-- Report Generator
-- Consolidator
-
-============================================================
-MERMAID SYNTAX
-============================================================
+Represent the relationships between these patterns where
+the transcript describes them.
 
 Use:
 
 flowchart TD
 
-Use readable node IDs.
+For branching:
 
-Example:
+A --> B
+A --> C
 
-A["Client Query"]
+For decisions:
 
-Avoid special characters that could break Mermaid.
+A --> B{Decision}
+B -->|Yes| C
+B -->|No| D
 
-============================================================
-OUTPUT
-============================================================
+For parallel processing:
 
-Return ONLY valid Mermaid code.
+A --> B
+A --> C
+A --> D
 
-Do NOT return markdown fences.
+For loops:
 
-Do NOT provide explanations.
+A --> B
+B --> C{Approved?}
+C -->|No| B
+C -->|Yes| D
 
-Do NOT provide commentary.
+For grouping related agents you may use Mermaid subgraphs.
 
-The first line must be:
+The final Mermaid diagram should be useful for a developer
+understanding the architecture.
+
+IMPORTANT OUTPUT RULE:
+
+Return ONLY Mermaid code.
+
+Start with:
 
 flowchart TD
+
+Do NOT return:
+
+```mermaid
+
+Do NOT return explanations before or after the diagram.
 """
         ),
         (
             "human",
             """
-================ ORIGINAL TRANSCRIPT ================
+Generate a Mermaid architecture/workflow graph from this
+original video transcript.
+
+================ TRANSCRIPT ================
 
 {transcript}
 
-================ END TRANSCRIPT =====================
+================ END TRANSCRIPT =============
 
-Convert this transcript into a Mermaid workflow graph.
+Return ONLY valid Mermaid code.
 """
         ),
     ]
@@ -914,7 +736,6 @@ def clean_markdown(
     if markdown.startswith(
         "```markdown"
     ):
-
         markdown = markdown[
             len("```markdown"):
         ].strip()
@@ -922,7 +743,6 @@ def clean_markdown(
     elif markdown.startswith(
         "```"
     ):
-
         markdown = markdown[
             len("```"):
         ].strip()
@@ -930,7 +750,6 @@ def clean_markdown(
     if markdown.endswith(
         "```"
     ):
-
         markdown = markdown[
             :-len("```")
         ].strip()
@@ -950,61 +769,51 @@ def clean_mermaid(
     mermaid = mermaid.strip()
 
     # --------------------------------------------------------
-    # Remove markdown fences
+    # Remove Markdown code fences
     # --------------------------------------------------------
 
-    mermaid = re.sub(
-        r"^```mermaid\s*",
-        "",
+    if mermaid.startswith(
+        "```mermaid"
+    ):
+
+        mermaid = mermaid[
+            len("```mermaid"):
+        ].strip()
+
+    elif mermaid.startswith(
+        "```"
+    ):
+
+        mermaid = mermaid[
+            len("```"):
+        ].strip()
+
+    if mermaid.endswith(
+        "```"
+    ):
+
+        mermaid = mermaid[
+            :-len("```")
+        ].strip()
+
+    # --------------------------------------------------------
+    # Find beginning of Mermaid graph
+    # --------------------------------------------------------
+
+    match = re.search(
+        r"(flowchart\s+(?:TD|TB|LR|RL|BT)|"
+        r"graph\s+(?:TD|TB|LR|RL|BT))",
         mermaid,
-        flags=re.IGNORECASE
+        re.IGNORECASE
     )
 
-    mermaid = re.sub(
-        r"^```\s*",
-        "",
-        mermaid
-    )
+    if match:
 
-    mermaid = re.sub(
-        r"\s*```$",
-        "",
-        mermaid
-    )
+        mermaid = mermaid[
+            match.start():
+        ]
 
-    mermaid = mermaid.strip()
-
-    # --------------------------------------------------------
-    # Find flowchart if model added text before it
-    # --------------------------------------------------------
-
-    if not mermaid.lower().startswith(
-        "flowchart"
-    ):
-
-        match = re.search(
-            r"flowchart\s+TD.*",
-            mermaid,
-            flags=re.IGNORECASE | re.DOTALL
-        )
-
-        if match:
-
-            mermaid = match.group(0).strip()
-
-    # --------------------------------------------------------
-    # Validate
-    # --------------------------------------------------------
-
-    if not mermaid.lower().startswith(
-        "flowchart"
-    ):
-
-        raise ValueError(
-            "LLM did not return a Mermaid flowchart."
-        )
-
-    return mermaid
+    return mermaid.strip()
 
 
 # ============================================================
@@ -1057,12 +866,6 @@ def get_youtube_transcript(
             state.where_to_save_transcript
         )
     )
-
-    if not transcript:
-
-        raise ValueError(
-            "YouTube transcript is empty."
-        )
 
     state.transcript = transcript
 
@@ -1159,7 +962,7 @@ def generate_summary(
         transcript=state.transcript
     )
 
-    response = llm.invoke(
+    response = llm2.invoke(
         messages
     )
 
@@ -1253,9 +1056,7 @@ def save_pdf_final(
             Spacer
         )
 
-        from reportlab.lib.enums import (
-            TA_LEFT
-        )
+        from reportlab.lib.enums import TA_LEFT
 
     except ImportError:
 
@@ -1748,7 +1549,8 @@ def generate_mermaid_from_transcript(
     print("=" * 60)
 
     print(
-        "Sending original transcript to LLM..."
+        "Sending original transcript to "
+        f"{OLLAMA_MODEL}..."
     )
 
     messages = mermaid_prompt.format_messages(
@@ -1762,6 +1564,12 @@ def generate_mermaid_from_transcript(
     mermaid = clean_mermaid(
         response.content
     )
+
+    if not mermaid:
+
+        raise ValueError(
+            "LLM returned an empty Mermaid graph."
+        )
 
     state.mermaid_code = (
         mermaid
@@ -1789,11 +1597,14 @@ def generate_mermaid_from_transcript(
         "generate_mermaid_from_transcript",
         f"""# Step 11 - Generate Mermaid From Transcript
 
-## Video
+        ## Video
 
-{state.video_url}
+        {state.video_url}
 
-## Mermaid
+        ## Mermaid
 
-```mermaid
-{mermaid}
+        ```mermaid
+        {mermaid}
+        """
+        )
+    return state
