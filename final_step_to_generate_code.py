@@ -962,7 +962,7 @@ def generate_summary(
         transcript=state.transcript
     )
 
-    response = llm2.invoke(
+    response = llm.invoke(
         messages
     )
 
