@@ -10,7 +10,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from youtubetranscripter import get_transcript_from_url
 
-from IPython.display import Image, display
+from IPython.display import Image, Markdown, display
 
 
 # ============================================================
@@ -1597,14 +1597,429 @@ def generate_mermaid_from_transcript(
         "generate_mermaid_from_transcript",
         f"""# Step 11 - Generate Mermaid From Transcript
 
-        ## Video
+## Video
 
-        {state.video_url}
+{state.video_url}
 
-        ## Mermaid
+## Mermaid
 
-        ```mermaid
-        {mermaid}
-        """
-        )
+```mermaid
+{mermaid}
+```
+"""
+    )
+
     return state
+
+
+# ============================================================
+# NODE 12
+# SAVE MERMAID OUTPUT
+# ============================================================
+
+def save_mermaid_output(
+    state: State
+):
+
+    print()
+    print("=" * 60)
+    print("STEP 12: SAVE MERMAID OUTPUT")
+    print("=" * 60)
+
+    mermaid_markdown = (
+        "```mermaid\n"
+        f"{state.mermaid_code}\n"
+        "```\n"
+    )
+
+    MERMAID_FILE.write_text(
+        mermaid_markdown,
+        encoding="utf-8"
+    )
+
+    state.mermaid_file = str(
+        MERMAID_FILE
+    )
+
+    # Keep the state field populated even when PNG rendering
+    # is not available in the current environment.
+    state.mermaid_png_file = str(
+        MERMAID_PNG_FILE
+    )
+
+    save_step(
+        12,
+        "save_mermaid_output",
+        f"""# Step 12 - Save Mermaid Output
+
+## Mermaid File
+
+`{MERMAID_FILE}`
+
+## Mermaid PNG File
+
+`{MERMAID_PNG_FILE}`
+
+## Mermaid
+
+```mermaid
+{state.mermaid_code}
+```
+"""
+    )
+
+    return state
+
+
+# ============================================================
+# BUILD LANGGRAPH
+# ============================================================
+
+def build_graph_langchain():
+
+    builder = StateGraph(
+        State
+    )
+
+    builder.add_node(
+        "get_youtube_transcript",
+        get_youtube_transcript
+    )
+
+    builder.add_node(
+        "analyze_transcript",
+        analyze_transcript
+    )
+
+    builder.add_node(
+        "generate_summary",
+        generate_summary
+    )
+
+    builder.add_node(
+        "save_summary",
+        save_summary
+    )
+
+    builder.add_node(
+        "save_pdf_final",
+        save_pdf_final
+    )
+
+    builder.add_node(
+        "save_markdown",
+        save_markdown
+    )
+
+    builder.add_node(
+        "python_code_md_file_generate",
+        python_code_md_file_generate
+    )
+
+    builder.add_node(
+        "save_markdown_python_code",
+        save_markdown_python_code
+    )
+
+    builder.add_node(
+        "generate_python_code",
+        generate_python_code
+    )
+
+    builder.add_node(
+        "save_python_project",
+        save_python_project
+    )
+
+    builder.add_node(
+        "generate_mermaid_from_transcript",
+        generate_mermaid_from_transcript
+    )
+
+    builder.add_node(
+        "save_mermaid_output",
+        save_mermaid_output
+    )
+
+    builder.add_edge(
+        START,
+        "get_youtube_transcript"
+    )
+
+    builder.add_edge(
+        "get_youtube_transcript",
+        "analyze_transcript"
+    )
+
+    builder.add_edge(
+        "get_youtube_transcript",
+        "generate_mermaid_from_transcript"
+    )
+
+    builder.add_edge(
+        "generate_mermaid_from_transcript",
+        "save_mermaid_output"
+    )
+
+    builder.add_edge(
+        "analyze_transcript",
+        "generate_summary"
+    )
+
+    builder.add_edge(
+        "generate_summary",
+        "save_summary"
+    )
+
+    builder.add_edge(
+        "save_summary",
+        "save_pdf_final"
+    )
+
+    builder.add_edge(
+        "analyze_transcript",
+        "save_markdown"
+    )
+
+    builder.add_edge(
+        "save_markdown",
+        "python_code_md_file_generate"
+    )
+
+    builder.add_edge(
+        "python_code_md_file_generate",
+        "save_markdown_python_code"
+    )
+
+    builder.add_edge(
+        "save_markdown_python_code",
+        "generate_python_code"
+    )
+
+    builder.add_edge(
+        "generate_python_code",
+        "save_python_project"
+    )
+
+    builder.add_edge(
+        "save_pdf_final",
+        END
+    )
+
+    builder.add_edge(
+        "save_python_project",
+        END
+    )
+
+    builder.add_edge(
+        "save_mermaid_output",
+        END
+    )
+
+    graph = builder.compile()
+
+    return graph
+
+
+# ============================================================
+# DISPLAY LANGGRAPH MERMAID
+# ============================================================
+
+def display_langgraph(
+    graph
+):
+
+    print()
+    print("=" * 70)
+    print("LANGGRAPH MERMAID")
+    print("=" * 70)
+
+    mermaid_code = (
+        graph.get_graph().draw_mermaid()
+    )
+
+    print()
+    print(mermaid_code)
+
+    try:
+
+        display(
+            Markdown(
+                "```mermaid\n"
+                + mermaid_code
+                + "\n```"
+            )
+        )
+
+    except Exception as exc:
+
+        print(
+            f"Could not display Mermaid: {exc}"
+        )
+
+    try:
+
+        png_data = (
+            graph.get_graph().draw_mermaid_png()
+        )
+
+        GRAPH_IMAGE_PATH.write_bytes(
+            png_data
+        )
+
+        print()
+        print(
+            "Graph PNG saved to:"
+        )
+
+        print(
+            GRAPH_IMAGE_PATH
+        )
+
+        display(
+            Image(
+                data=png_data
+            )
+        )
+
+    except Exception as exc:
+
+        print()
+        print(
+            "PNG graph generation skipped."
+        )
+
+        print(
+            f"Reason: {exc}"
+        )
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+if __name__ == "__main__":
+
+    print()
+    print("=" * 70)
+    print(
+        "STARTING LANGGRAPH AI CODE GENERATION WORKFLOW"
+    )
+    print("=" * 70)
+
+    print()
+    print(
+        f"Output directory:\n"
+        f"{OUTPUT_PATH}"
+    )
+
+    print()
+    print(
+        f"Steps directory:\n"
+        f"{STEPS_PATH}"
+    )
+
+    print()
+    print(
+        f"Generated project directory:\n"
+        f"{GENERATED_PROJECT_PATH}"
+    )
+
+    initial_state = State(
+        video_url=(
+            "https://www.youtube.com/watch?v=FJHyCAi4GcY"
+        ),
+        where_to_save_transcript=(
+            "transcript.txt"
+        )
+    )
+
+    graph = build_graph_langchain()
+
+    display_langgraph(
+        graph
+    )
+
+    final_state = graph.invoke(
+        initial_state
+    )
+
+    print()
+    print("=" * 70)
+    print("WORKFLOW COMPLETED")
+    print("=" * 70)
+
+    print()
+    print("Summary:")
+    print(
+        f"  {final_state.get('summary_file')}"
+    )
+
+    print()
+    print("PDF:")
+    print(
+        f"  {final_state.get('pdf_file')}"
+    )
+
+    print()
+    print("Technical Markdown:")
+    print(
+        f"  {final_state.get('output_file')}"
+    )
+
+    print()
+    print("Implementation Markdown:")
+    print(
+        f"  {final_state.get('python_output_file')}"
+    )
+
+    print()
+    print("Generated project:")
+    print(
+        f"  {final_state.get('generated_project_path')}"
+    )
+
+    print()
+    print("Transcript Mermaid:")
+    print(
+        f"  {final_state.get('mermaid_file')}"
+    )
+
+    project_dir = final_state.get(
+        "generated_project_path"
+    )
+
+    if project_dir:
+
+        project_path = Path(
+            project_dir
+        )
+
+        print()
+        print("Project files:")
+
+        for file in sorted(
+            project_path.rglob("*")
+        ):
+
+            if file.is_file():
+
+                print(
+                    f"  {file.relative_to(project_path)}"
+                )
+
+    print()
+    print("Step files:")
+
+    for file in sorted(
+        STEPS_PATH.glob("*.md")
+    ):
+
+        print(
+            f"  {file.name}"
+        )
+
+    print()
+    print("=" * 70)
+    print("DONE")
+    print("=" * 70)
