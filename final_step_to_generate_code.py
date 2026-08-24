@@ -29,6 +29,8 @@ class State(BaseModel):
     transcription_md_file_str: str = ""
     python_code_transcript:str=""
     output_file: str = ""
+    python_output_file: str = ""
+
 
 
 prompt = ChatPromptTemplate.from_messages(
@@ -278,7 +280,7 @@ def save_markdown_python_code(state: State):
         "output_python_code.md",
         encoding="utf-8"
     )
-    state.output_file = str(
+    state.python_output_file = str(
         OUTPUT_FILE
     )
 
