@@ -1,5 +1,7 @@
 from typing import TypedDict
 from pathlib import Path
+from pydantic import BaseModel, Field
+import json
 
 from langgraph.graph import StateGraph, START, END
 from langchain_ollama import ChatOllama
@@ -18,13 +20,47 @@ llm = ChatOllama(
 
 
 # ============================================================
-# State
+# 2. PYDANTIC MODELS
+# ============================================================
+
+class ProjectFile(BaseModel):
+    path: str = Field(
+        description="Relative path of the file"
+    )
+
+    description: str = Field(
+        description="What this file should contain"
+    )
+
+
+class ProjectStructure(BaseModel):
+
+    project_name: str
+
+    files: list[ProjectFile]
+
+
+class GeneratedFile(BaseModel):
+
+    path: str
+
+    content: str
+
+
+class GeneratedProject(BaseModel):
+
+    files: list[GeneratedFile]
+
+
+# ============================================================
+# 3. LANGGRAPH STATE
 # ============================================================
 
 class State(TypedDict):
     transcript: str
     analysis: str
-    code: str
+    project_structure: dict
+    files: dict
     review: str
     output_path: str
 
@@ -55,36 +91,43 @@ def save_graph_png(app, output_path: str):
 
 def analyze_transcript(state: State):
 
-    print("\n" + "=" * 60)
-    print("🔍 STEP 1: ANALYZING TRANSCRIPT")
-    print("=" * 60)
+    print("\n")
+    print("=" * 70)
+    print("🔍 STEP 1: ANALYZING YOUTUBE TRANSCRIPT")
+    print("=" * 70)
 
     prompt = f"""
-You are a senior Python architect.
+You are a senior Python software architect.
 
-Analyze the following YouTube tutorial transcript.
+Analyze this YouTube tutorial transcript.
+
+Your job is to understand exactly what project the
+tutorial is teaching.
 
 Extract:
 
-1. What project is being built
-2. Required Python packages
-3. Important classes
-4. Important functions
-5. Data structures
-6. Architecture
-7. Workflow
-8. Important implementation details
+1. Project purpose
+2. Features
+3. Python libraries
+4. Classes
+5. Functions
+6. Agents
+7. Tools
+8. Data structures
+9. Workflow
+10. Configuration
+11. Database requirements
+12. File/module organization
+13. Important implementation details
 
 Do NOT generate code yet.
 
-Transcript:
-----------------------------
+Give a detailed technical analysis.
+
+YOUTUBE TRANSCRIPT
+==================
 
 {state["transcript"]}
-
-----------------------------
-
-Provide a detailed technical analysis.
 """
 
     response = llm.invoke(prompt)
@@ -97,94 +140,215 @@ Provide a detailed technical analysis.
 
 
 # ============================================================
-# Node 2: Generate Python Code
+# 6. NODE: DESIGN PROJECT STRUCTURE
 # ============================================================
 
-def generate_code(state: State):
+def design_project(state: State):
+    print("\n")
+    print("=" * 70)
+    print("🏗️ STEP 2: DESIGNING PROJECT STRUCTURE")
+    print("=" * 70)
 
-    print("\n" + "=" * 60)
-    print("💻 STEP 2: GENERATING PYTHON CODE")
-    print("=" * 60)
+    structured_llm = llm.with_structured_output(
+        ProjectStructure
+    )
 
     prompt = f"""
-You are an expert Python developer.
+You are a senior Python software architect.
 
-Based on the following tutorial analysis,
-generate the complete Python implementation.
+Based on the tutorial analysis below,
+design a proper Python project structure.
 
-ANALYSIS:
-----------------------------
+Do NOT put everything into main.py.
+
+Separate responsibilities into appropriate modules.
+
+For example, depending on the tutorial you might create:
+
+main.py
+config.py
+state.py
+graph.py
+
+agents/
+tools/
+services/
+models/
+
+requirements.txt
+README.md
+
+Only create files that are actually useful for
+the project.
+
+The structure must be based on the tutorial.
+
+TUTORIAL ANALYSIS
+=================
 
 {state["analysis"]}
-
-----------------------------
-
-Requirements:
-
-- Write real runnable Python code.
-- Use modern Python.
-- Include imports.
-- Include error handling.
-- Include comments.
-- Include required packages.
-- Do not leave TODO placeholders.
-- If multiple files are required, clearly identify them.
-- Follow the architecture described in the analysis.
-
-Return the complete implementation.
 """
 
-    response = llm.invoke(prompt)
+    result = structured_llm.invoke(prompt)
 
-    print("✅ Python code generated")
+    print("\n📁 PROJECT STRUCTURE:")
+
+    for file in result.files:
+
+        print(
+            f"   📄 {file.path}"
+            f" → {file.description}"
+        )
 
     return {
-        "code": response.content
+        "project_structure": result.model_dump()
     }
 
 
 # ============================================================
-# Node 3: Review Code
+# 7. NODE: GENERATE PROJECT FILES
 # ============================================================
 
-def review_code(state: State):
+def generate_files(state: State):
+    print("\n")
+    print("=" * 70)
+    print("💻 STEP 3: GENERATING PROJECT FILES")
+    print("=" * 70)
+    structured_llm = llm.with_structured_output(
+        GeneratedProject
+    )
+    structure = state["project_structure"]
+    files_description = "\n".join(
+        f"- {file['path']}: {file['description']}"
+        for file in structure["files"]
+    )
 
-    print("\n" + "=" * 60)
-    print("🔎 STEP 3: REVIEWING GENERATED CODE")
-    print("=" * 60)
+    prompt = f"""
+You are an expert Python developer.
+
+Create the complete Python project described below.
+
+TUTORIAL ANALYSIS
+=================
+
+{state["analysis"]}
+
+
+PROJECT STRUCTURE
+=================
+
+{files_description}
+
+
+IMPORTANT REQUIREMENTS
+=====================
+
+1. Generate real runnable Python code.
+
+2. Generate every requested file.
+
+3. Keep responsibilities separated.
+
+4. Use correct imports between files.
+
+5. Do not use fake functions.
+
+6. Do not leave TODO placeholders.
+
+7. Include proper error handling.
+
+8. Include requirements.txt.
+
+9. Include README.md.
+
+10. Make the project internally consistent.
+
+11. Use the APIs and frameworks described in
+the tutorial whenever possible.
+
+Return every file with its relative path
+and complete content.
+"""
+
+    result = structured_llm.invoke(prompt)
+
+    files = {}
+
+    for file in result.files:
+
+        files[file.path] = file.content
+
+        print(
+            f"   ✅ Generated: {file.path}"
+        )
+
+    return {
+        "files": files
+    }
+
+
+# ============================================================
+# 8. NODE: REVIEW PROJECT
+# ============================================================
+
+def review_project(state: State):
+
+    print("\n")
+    print("=" * 70)
+    print("🔎 STEP 4: REVIEWING PROJECT")
+    print("=" * 70)
+
+    project_text = ""
+
+    for path, content in state["files"].items():
+
+        project_text += f"""
+
+==================================================
+FILE: {path}
+==================================================
+
+{content}
+
+"""
 
     prompt = f"""
 You are a senior Python code reviewer.
 
-Review the following generated code.
+Review this complete generated project.
 
-CODE:
-----------------------------
+PROJECT:
 
-{state["code"]}
+{project_text}
 
-----------------------------
+Check:
 
-Check for:
+1. Python syntax
+2. Missing imports
+3. Incorrect imports
+4. Missing dependencies
+5. Incorrect LangGraph APIs
+6. Incorrect LangChain APIs
+7. Incorrect Ollama usage
+8. Circular imports
+9. Missing functions
+10. Missing classes
+11. Incorrect file paths
+12. Logical problems
+13. Inconsistent code between files
 
-- Syntax errors
-- Missing imports
-- Incorrect APIs
-- Missing dependencies
-- Logical errors
-- Incomplete implementation
-- Problems that would prevent execution
-- Incorrect Python syntax
-- Bad LangChain/LangGraph APIs if used
+Provide a detailed review.
 
-Fix all problems you find.
+If the project is correct, say:
 
-Return ONLY the corrected Python implementation.
+PROJECT_VALID
+
+Otherwise explain every problem that must be fixed.
 """
 
     response = llm.invoke(prompt)
 
-    print("✅ Code review completed")
+    print(response.content)
 
     return {
         "review": response.content
@@ -192,56 +356,67 @@ Return ONLY the corrected Python implementation.
 
 
 # ============================================================
-# Node 4: Save Code
+# 9. NODE: SAVE PROJECT
 # ============================================================
 
-def save_code(state: State):
+def save_project(state: State):
 
-    print("\n" + "=" * 60)
-    print("💾 STEP 4: SAVING CODE")
-    print("=" * 60)
+    print("\n")
+    print("=" * 70)
+    print("💾 STEP 5: SAVING PROJECT")
+    print("=" * 70)
 
-    output_path = Path(
+    project_path = Path(
         state["output_path"]
     )
 
-    output_path.parent.mkdir(
+    project_path.mkdir(
         parents=True,
         exist_ok=True
     )
 
-    code = state["review"]
+    for relative_path, content in state["files"].items():
 
-    # Remove markdown code fences if Ollama returns them
-    if code.startswith("```python"):
+        file_path = (
+            project_path / relative_path
+        )
 
-        code = code[len("```python"):]
+        # Prevent accidental absolute paths
+        if file_path.is_absolute():
 
-    elif code.startswith("```"):
+            print(
+                f"⚠️ Skipping unsafe path: "
+                f"{relative_path}"
+            )
 
-        code = code[len("```"):]
+            continue
 
-    if code.endswith("```"):
+        file_path.parent.mkdir(
+            parents=True,
+            exist_ok=True
+        )
 
-        code = code[:-3]
+        file_path.write_text(
+            content,
+            encoding="utf-8"
+        )
 
-    code = code.strip()
+        print(
+            f"   📄 Saved: {file_path}"
+        )
 
-    output_path.write_text(
-        code,
-        encoding="utf-8"
+    print("\n✅ PROJECT SAVED")
+    print(
+        f"📁 Location: {project_path}"
     )
 
-    print(f"✅ Code saved:")
-    print(f"   {output_path}")
-
     return {
-        "output_path": str(output_path)
+        "output_path": str(project_path)
     }
 
 
 # ============================================================
-# Build LangGraph
+# 10. BUILD LANGGRAPH
 # ============================================================
 
 def build_graph():
@@ -249,27 +424,34 @@ def build_graph():
     graph = StateGraph(State)
 
     # Nodes
+
     graph.add_node(
         "analyze",
         analyze_transcript
     )
 
     graph.add_node(
-        "generate_code",
-        generate_code
+        "design_project",
+        design_project
+    )
+
+    graph.add_node(
+        "generate_files",
+        generate_files
     )
 
     graph.add_node(
         "review",
-        review_code
+        review_project
     )
 
     graph.add_node(
-        "save_code",
-        save_code
+        "save_project",
+        save_project
     )
 
-    # Flow
+    # Edges
+
     graph.add_edge(
         START,
         "analyze"
@@ -277,21 +459,26 @@ def build_graph():
 
     graph.add_edge(
         "analyze",
-        "generate_code"
+        "design_project"
     )
 
     graph.add_edge(
-        "generate_code",
+        "design_project",
+        "generate_files"
+    )
+
+    graph.add_edge(
+        "generate_files",
         "review"
     )
 
     graph.add_edge(
         "review",
-        "save_code"
+        "save_project"
     )
 
     graph.add_edge(
-        "save_code",
+        "save_project",
         END
     )
 
@@ -299,7 +486,7 @@ def build_graph():
 
 
 # ============================================================
-# Run Graph with Live Progress
+# 11. RUN GRAPH WITH LIVE PROGRESS
 # ============================================================
 
 def run_graph(
@@ -314,7 +501,9 @@ def run_graph(
 
         "analysis": "",
 
-        "code": "",
+        "project_structure": {},
+
+        "files": {},
 
         "review": "",
 
@@ -322,14 +511,14 @@ def run_graph(
     }
 
     print("\n")
-    print("=" * 60)
-    print("🚀 STARTING YOUTUBE → PYTHON CODE AGENT")
-    print("=" * 60)
+    print("=" * 70)
+    print("🚀 YOUTUBE → PYTHON PROJECT AGENT")
+    print("=" * 70)
 
     print("\nSTART")
     print("  ↓")
 
-    final_state = None
+    final_state = initial_state.copy()
 
     for event in app.stream(
         initial_state,
@@ -339,66 +528,83 @@ def run_graph(
         for node_name, output in event.items():
 
             print(
-                f"▶️  NODE: {node_name}"
+                f"\n▶️ RUNNING NODE: {node_name}"
             )
 
             if node_name == "analyze":
 
                 print(
-                    "    ✓ Transcript analyzed"
+                    "   ✓ Tutorial understood"
                 )
 
-            elif node_name == "generate_code":
+            elif node_name == "design_project":
 
                 print(
-                    "    ✓ Python code generated"
+                    "   ✓ Project structure created"
+                )
+
+            elif node_name == "generate_files":
+
+                print(
+                    f"   ✓ Generated "
+                    f"{len(output.get('files', {}))} files"
                 )
 
             elif node_name == "review":
 
                 print(
-                    "    ✓ Code reviewed and corrected"
+                    "   ✓ Project reviewed"
                 )
 
-            elif node_name == "save_code":
+            elif node_name == "save_project":
 
                 print(
-                    "    ✓ Code written to disk"
+                    "   ✓ Project saved"
                 )
+
+            final_state.update(output)
 
             print("  ↓")
 
-            final_state = output
-
     print("END")
 
-    print("\n" + "=" * 60)
+    print("\n")
+    print("=" * 70)
     print("🎉 WORKFLOW COMPLETED")
-    print("=" * 60)
+    print("=" * 70)
 
     return final_state
 
 
 # ============================================================
-# Main
+# 12. MAIN
 # ============================================================
 
 if __name__ == "__main__":
 
     # --------------------------------------------------------
-    # Your transcript
+    # Replace this with your actual YouTube transcript
     # --------------------------------------------------------
 
     transcript = """
-    Today we are going to build a simple Python AI agent.
+    Today we are going to build an AI agent system.
 
-    The agent will use an Ollama model and LangGraph.
+    We will use LangGraph for orchestration.
 
-    First we create a StateGraph.
+    We will use Ollama as the local language model.
 
-    Then we create an agent node.
+    First we create a State class.
 
-    Finally we execute the graph and return the result.
+    Then we create an analyzer agent.
+
+    Then we create a code generator.
+
+    Finally we create a review agent.
+
+    The project should contain separate modules
+    for agents, tools and graph configuration.
+
+    We also create a requirements.txt file.
     """
 
     # --------------------------------------------------------
@@ -407,10 +613,12 @@ if __name__ == "__main__":
 
     app = build_graph()
 
-    print("\n✅ LangGraph compiled successfully.")
+    print(
+        "\n✅ LangGraph compiled successfully."
+    )
 
     # --------------------------------------------------------
-    # Save graph PNG
+    # Save graph image
     # --------------------------------------------------------
 
     graph_path = save_graph_png(
@@ -419,7 +627,7 @@ if __name__ == "__main__":
     )
 
     print(
-        f"\n📊 Graph saved to:"
+        f"\n📊 LangGraph saved to:"
         f"\n{graph_path}"
     )
 
@@ -438,12 +646,11 @@ if __name__ == "__main__":
     except Exception:
 
         print(
-            "Running outside Jupyter - "
-            "graph image saved successfully."
+            "Graph image saved successfully."
         )
 
     # --------------------------------------------------------
-    # Run LangGraph
+    # Run workflow
     # --------------------------------------------------------
 
     result = run_graph(
@@ -452,8 +659,23 @@ if __name__ == "__main__":
 
         transcript,
 
-        "/home/satvir/Downloads/TestCreation/main.py"
+        "/home/satvir/Downloads/TestCreation"
     )
 
-    print("\nFinal result:")
-    print(result)
+    # --------------------------------------------------------
+    # Print generated files
+    # --------------------------------------------------------
+
+    print("\n")
+    print("=" * 70)
+    print("📁 GENERATED PROJECT")
+    print("=" * 70)
+
+    for file_path in result.get(
+        "files",
+        {}
+    ):
+
+        print(
+            f"   📄 {file_path}"
+        )
