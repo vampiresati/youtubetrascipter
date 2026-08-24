@@ -24,31 +24,15 @@ llm = ChatOllama(
 # ============================================================
 
 class ProjectFile(BaseModel):
-    path: str = Field(
-        description="Relative path of the file"
-    )
-
-    description: str = Field(
-        description="What this file should contain"
-    )
-
-
+    path: str = Field(description="Relative path of the file")
+    description: str = Field(description="What this file should contain")
 class ProjectStructure(BaseModel):
-
     project_name: str
-
     files: list[ProjectFile]
-
-
 class GeneratedFile(BaseModel):
-
     path: str
-
     content: str
-
-
 class GeneratedProject(BaseModel):
-
     files: list[GeneratedFile]
 
 
@@ -70,18 +54,13 @@ class State(TypedDict):
 # ============================================================
 
 def save_graph_png(app, output_path: str):
-
     output_path = Path(output_path)
-
     output_path.parent.mkdir(
         parents=True,
         exist_ok=True
     )
-
     png_bytes = app.get_graph().draw_mermaid_png()
-
     output_path.write_bytes(png_bytes)
-
     return str(output_path)
 
 
@@ -90,12 +69,10 @@ def save_graph_png(app, output_path: str):
 # ============================================================
 
 def analyze_transcript(state: State):
-
     print("\n")
     print("=" * 70)
     print("🔍 STEP 1: ANALYZING YOUTUBE TRANSCRIPT")
     print("=" * 70)
-
     prompt = f"""
 You are a senior Python software architect.
 
