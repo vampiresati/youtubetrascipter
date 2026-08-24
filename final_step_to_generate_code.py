@@ -14,6 +14,7 @@ from youtubetranscripter import get_transcript_from_url
 # ============================================================
 
 OLLAMA_MODEL = "qwen2.5-coder:7b"
+OLLAMA_MODEL2 = "qwen3-4b"
 
 OUTPUT_PATH = Path(
     "/home/satvir/Downloads/MarkdownSatvir2"
@@ -35,7 +36,9 @@ GRAPH_IMAGE_PATH = (
     OUTPUT_PATH / "langgraph.png"
 )
 
-
+##
+SUMMARY_FILE = OUTPUT_PATH / "summary.md"
+PDF_FILE = OUTPUT_PATH / "summary.pdf"
 # ============================================================
 # CREATE DIRECTORIES
 # ============================================================
@@ -62,6 +65,11 @@ GENERATED_PROJECT_PATH.mkdir(
 
 llm = ChatOllama(
     model=OLLAMA_MODEL,
+    temperature=0
+)
+
+llm2 = ChatOllama(
+    model=OLLAMA_MODEL2,
     temperature=0
 )
 
@@ -97,7 +105,9 @@ class State(BaseModel):
 
     # Step 7
     generated_project_path: str = ""
-
+    summary: str = ""
+    summary_file: str = ""
+    pdf_file: str = ""
 
 # ============================================================
 # PROMPT 1
@@ -562,6 +572,43 @@ def clean_markdown(markdown: str) -> str:
 
     return markdown
 
+def generate_summary(state: State):
+    print("=" * 60)
+    print("STEP : GENERATE SUMMARY")
+    print("=" * 60)
+    messages = summary_prompt.format_messages(
+        transcript=state.transcript
+    )
+    response = llm2.invoke(messages)
+    state.summary = response.content
+    save_step(
+        3,
+        "generate_summary",
+        state.summary
+    )
+
+    return state
+def save_summary(state: State):
+    print("=" * 60)
+    print("STEP : SAVE SUMMARY")
+    print("=" * 60)
+
+    SUMMARY_FILE.write_text(
+        state.summary,
+        encoding="utf-8"
+    )
+
+    state.summary_file = str(
+        SUMMARY_FILE
+    )
+
+    save_step(
+        4,
+        "save_summary",
+        state.summary
+    )
+
+    return state
 
 # ============================================================
 # HELPER
