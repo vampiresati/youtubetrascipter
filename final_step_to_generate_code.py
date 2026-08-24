@@ -666,7 +666,7 @@ A --> C
 
 For decisions:
 
-A --> B{Decision}
+A --> B{{Decision}}
 B -->|Yes| C
 B -->|No| D
 
@@ -679,7 +679,7 @@ A --> D
 For loops:
 
 A --> B
-B --> C{Approved?}
+B --> C{{Approved?}}
 C -->|No| B
 C -->|Yes| D
 
@@ -1752,16 +1752,6 @@ def build_graph_langchain():
     )
 
     builder.add_edge(
-        "get_youtube_transcript",
-        "generate_mermaid_from_transcript"
-    )
-
-    builder.add_edge(
-        "generate_mermaid_from_transcript",
-        "save_mermaid_output"
-    )
-
-    builder.add_edge(
         "analyze_transcript",
         "generate_summary"
     )
@@ -1777,7 +1767,7 @@ def build_graph_langchain():
     )
 
     builder.add_edge(
-        "analyze_transcript",
+        "save_pdf_final",
         "save_markdown"
     )
 
@@ -1802,13 +1792,13 @@ def build_graph_langchain():
     )
 
     builder.add_edge(
-        "save_pdf_final",
-        END
+        "save_python_project",
+        "generate_mermaid_from_transcript"
     )
 
     builder.add_edge(
-        "save_python_project",
-        END
+        "generate_mermaid_from_transcript",
+        "save_mermaid_output"
     )
 
     builder.add_edge(
