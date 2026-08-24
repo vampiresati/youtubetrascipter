@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 from pydantic import BaseModel
 from langgraph.graph import StateGraph, START, END
@@ -22,10 +23,22 @@ STEPS_PATH = OUTPUT_PATH / "steps"
 
 OUTPUT_FILE = OUTPUT_PATH / "transcript_analysis.md"
 
-PYTHON_OUTPUT_FILE = OUTPUT_PATH / "output_python_code.md"
+PYTHON_OUTPUT_FILE = (
+    OUTPUT_PATH / "output_python_code.md"
+)
 
-GRAPH_IMAGE_PATH = OUTPUT_PATH / "langgraph.png"
+GENERATED_PROJECT_PATH = (
+    OUTPUT_PATH / "generated_project"
+)
 
+GRAPH_IMAGE_PATH = (
+    OUTPUT_PATH / "langgraph.png"
+)
+
+
+# ============================================================
+# CREATE DIRECTORIES
+# ============================================================
 
 OUTPUT_PATH.mkdir(
     parents=True,
@@ -33,6 +46,11 @@ OUTPUT_PATH.mkdir(
 )
 
 STEPS_PATH.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+GENERATED_PROJECT_PATH.mkdir(
     parents=True,
     exist_ok=True
 )
@@ -62,13 +80,23 @@ class State(BaseModel):
 
     transcript: str = ""
 
+    # Step 2
     transcription_md_file_str: str = ""
 
+    # Step 4
     python_code_transcript: str = ""
 
+    # Step 3
     output_file: str = ""
 
+    # Step 5
     python_output_file: str = ""
+
+    # Step 6
+    generated_project_spec: str = ""
+
+    # Step 7
+    generated_project_path: str = ""
 
 
 # ============================================================
@@ -81,7 +109,6 @@ prompt = ChatPromptTemplate.from_messages(
 
         (
             "system",
-
             """
 You are an expert technical content analyst and
 senior Python developer.
@@ -181,7 +208,6 @@ IMPORTANT:
 
         (
             "human",
-
             """
 Here is the video transcript:
 
@@ -209,7 +235,6 @@ prompt2 = ChatPromptTemplate.from_messages(
 
         (
             "system",
-
             """
 You are a senior Python developer and AI engineer.
 
@@ -315,7 +340,6 @@ IMPORTANT:
 
         (
             "human",
-
             """
 ================ ORIGINAL TRANSCRIPT ================
 
@@ -339,8 +363,179 @@ Create the implementation-focused Markdown document.
 
 
 # ============================================================
+# PROMPT 3
+# IMPLEMENTATION MARKDOWN -> MULTI-FILE PYTHON PROJECT
+# ============================================================
+
+prompt3 = ChatPromptTemplate.from_messages(
+    [
+
+        (
+            "system",
+            """
+You are a senior Python developer and AI engineer.
+
+Your task is to generate a COMPLETE MULTI-FILE PYTHON
+PROJECT based on the implementation specification.
+
+You are given:
+
+1. The original YouTube transcript.
+2. The implementation-focused Markdown.
+
+The implementation Markdown is the primary specification.
+The transcript provides additional context.
+
+============================================================
+IMPORTANT
+============================================================
+
+DO NOT generate one large Python file.
+
+Generate a REAL PROJECT containing multiple files whenever
+the implementation requires multiple components.
+
+The project will be saved automatically into:
+
+generated_project/
+
+============================================================
+PROJECT STRUCTURE
+============================================================
+
+Create appropriate folders and files.
+
+For example:
+
+generated_project/
+    main.py
+    requirements.txt
+    agents/
+        invoice_agent.py
+        tax_agent.py
+    tools/
+        tax_tools.py
+    models/
+        schemas.py
+
+Only create files that are actually needed.
+
+============================================================
+FILE FORMAT
+============================================================
+
+You MUST return every file using this exact format:
+
+===== FILE: main.py =====
+
+<complete file contents>
+
+===== END FILE =====
+
+
+===== FILE: agents/invoice_agent.py =====
+
+<complete file contents>
+
+===== END FILE =====
+
+
+===== FILE: requirements.txt =====
+
+<complete requirements>
+
+===== END FILE =====
+
+============================================================
+RULES
+============================================================
+
+1. Generate complete code.
+
+2. Generate all required imports.
+
+3. Generate all required classes.
+
+4. Generate all required functions.
+
+5. Generate requirements.txt.
+
+6. Use relative imports correctly.
+
+7. Make the project internally consistent.
+
+8. Make main.py the entry point when appropriate.
+
+9. Create folders when necessary.
+
+10. Do not put multiple Python modules into one file
+    when they logically belong in separate modules.
+
+11. Do not invent functionality that is unsupported by
+    the transcript or implementation Markdown.
+
+12. Do not invent external APIs.
+
+13. Use the libraries mentioned in the source material
+    when appropriate.
+
+14. If the source does not provide exact implementation
+    details, create a reasonable implementation based
+    only on the documented concepts.
+
+15. The generated project should be runnable after installing
+    requirements.txt.
+
+16. Do not include explanations outside the FILE sections.
+
+17. Return ONLY FILE sections.
+
+============================================================
+ORIGINAL TRANSCRIPT
+============================================================
+
+{transcript}
+
+============================================================
+END ORIGINAL TRANSCRIPT
+============================================================
+
+
+============================================================
+IMPLEMENTATION MARKDOWN
+============================================================
+
+{implementation_markdown}
+
+============================================================
+END IMPLEMENTATION MARKDOWN
+============================================================
+"""
+        ),
+
+        (
+            "human",
+            """
+Generate the complete multi-file Python project now.
+
+Remember:
+
+===== FILE: path/to/file.py =====
+
+code
+
+===== END FILE =====
+
+Generate every required file.
+"""
+        )
+    ]
+)
+
+
+# ============================================================
 # HELPER
-# REMOVE MARKDOWN CODE FENCES FROM LLM OUTPUT
+# REMOVE MARKDOWN CODE FENCES
 # ============================================================
 
 def clean_markdown(markdown: str) -> str:
@@ -650,6 +845,270 @@ def save_markdown_python_code(
 
 
 # ============================================================
+# NODE 6
+# GENERATE MULTI-FILE PYTHON PROJECT
+# ============================================================
+
+def generate_python_code(
+    state: State
+):
+
+    print()
+    print("=" * 60)
+    print("STEP 6: GENERATE MULTI-FILE PYTHON PROJECT")
+    print("=" * 60)
+
+    print(
+        "Generating project using Ollama..."
+    )
+
+    messages = prompt3.format_messages(
+        transcript=state.transcript,
+        implementation_markdown=(
+            state.python_code_transcript
+        )
+    )
+
+    response = llm.invoke(
+        messages
+    )
+
+    project_spec = response.content.strip()
+
+    state.generated_project_spec = (
+        project_spec
+    )
+
+    print(
+        f"Generated project specification "
+        f"characters: {len(project_spec)}"
+    )
+
+    # Save raw LLM response
+    save_step(
+        6,
+        "generate_python_code",
+        f"""# Step 6 - Generate Python Project
+
+## Generated Project Specification
+
+{project_spec}
+"""
+    )
+
+    return state
+
+
+# ============================================================
+# HELPER
+# PARSE MULTI-FILE LLM RESPONSE
+# ============================================================
+
+def parse_generated_files(
+    project_text: str
+) -> dict[str, str]:
+
+    pattern = re.compile(
+        r"===== FILE: (.*?) =====\s*"
+        r"(.*?)"
+        r"\s*===== END FILE =====",
+        re.DOTALL
+    )
+
+    matches = pattern.findall(
+        project_text
+    )
+
+    files = {}
+
+    for file_path, content in matches:
+
+        file_path = file_path.strip()
+
+        content = content.strip()
+
+        if not file_path:
+            continue
+
+        files[file_path] = content
+
+    return files
+
+
+# ============================================================
+# HELPER
+# SAFETY CHECK FILE PATH
+# ============================================================
+
+def safe_project_path(
+    project_root: Path,
+    relative_path: str
+) -> Path:
+
+    relative_path = (
+        relative_path
+        .replace("\\", "/")
+        .strip()
+    )
+
+    # Remove leading slash
+    relative_path = relative_path.lstrip("/")
+
+    target = (
+        project_root / relative_path
+    ).resolve()
+
+    project_root_resolved = (
+        project_root.resolve()
+    )
+
+    # Prevent ../ escaping project directory
+    if (
+        target != project_root_resolved
+        and project_root_resolved
+        not in target.parents
+    ):
+        raise ValueError(
+            f"Unsafe file path generated: "
+            f"{relative_path}"
+        )
+
+    return target
+
+
+# ============================================================
+# NODE 7
+# SAVE PYTHON PROJECT
+# ============================================================
+
+def save_python_project(
+    state: State
+):
+
+    print()
+    print("=" * 60)
+    print("STEP 7: SAVE PYTHON PROJECT")
+    print("=" * 60)
+
+    project_root = (
+        GENERATED_PROJECT_PATH
+    )
+
+    project_root.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    print(
+        f"Project directory: "
+        f"{project_root}"
+    )
+
+    # --------------------------------------------------------
+    # Parse files generated by LLM
+    # --------------------------------------------------------
+
+    files = parse_generated_files(
+        state.generated_project_spec
+    )
+
+    if not files:
+
+        raise ValueError(
+            """
+No files were found in the LLM response.
+
+Expected format:
+
+===== FILE: main.py =====
+
+print("Hello")
+
+===== END FILE =====
+"""
+        )
+
+    print(
+        f"Files generated by LLM: "
+        f"{len(files)}"
+    )
+
+    saved_files = []
+
+    # --------------------------------------------------------
+    # Save every generated file
+    # --------------------------------------------------------
+
+    for relative_path, content in files.items():
+
+        target_file = safe_project_path(
+            project_root,
+            relative_path
+        )
+
+        target_file.parent.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        target_file.write_text(
+            content,
+            encoding="utf-8"
+        )
+
+        saved_files.append(
+            relative_path
+        )
+
+        print(
+            f"  ✓ {relative_path}"
+        )
+
+    # --------------------------------------------------------
+    # Update state
+    # --------------------------------------------------------
+
+    state.generated_project_path = (
+        str(project_root)
+    )
+
+    # --------------------------------------------------------
+    # Save Step 7 report
+    # --------------------------------------------------------
+
+    file_list = "\n".join(
+        f"- `{file}`"
+        for file in saved_files
+    )
+
+    save_step(
+        7,
+        "save_python_project",
+        f"""# Step 7 - Save Python Project
+
+## Project Directory
+
+`{project_root}`
+
+## Generated Files
+
+{file_list}
+
+## Total Files
+
+{len(saved_files)}
+"""
+    )
+
+    print()
+    print(
+        "Python project successfully created."
+    )
+
+    return state
+
+
+# ============================================================
 # BUILD LANGGRAPH
 # ============================================================
 
@@ -658,6 +1117,10 @@ def build_graph_langchain():
     builder = StateGraph(
         State
     )
+
+    # --------------------------------------------------------
+    # NODES
+    # --------------------------------------------------------
 
     builder.add_node(
         "get_youtube_transcript",
@@ -682,6 +1145,16 @@ def build_graph_langchain():
     builder.add_node(
         "save_markdown_python_code",
         save_markdown_python_code
+    )
+
+    builder.add_node(
+        "generate_python_code",
+        generate_python_code
+    )
+
+    builder.add_node(
+        "save_python_project",
+        save_python_project
     )
 
     # --------------------------------------------------------
@@ -715,6 +1188,16 @@ def build_graph_langchain():
 
     builder.add_edge(
         "save_markdown_python_code",
+        "generate_python_code"
+    )
+
+    builder.add_edge(
+        "generate_python_code",
+        "save_python_project"
+    )
+
+    builder.add_edge(
+        "save_python_project",
         END
     )
 
@@ -723,145 +1206,114 @@ def build_graph_langchain():
     return graph
 
 
-prompt3 = ChatPromptTemplate.from_messages(
-    [
-
-        (
-            "system",
-            """You are a senior Python developer and AI enginner.Generate python and save them
-            ---- markdown1----
-            {transcript_md}
-            ----end of markdown1-----
-            ---- markdown2----
-            {output_md}
-            ----end of markdown1-----
-            i need save file in output directory
-            """)
-     ]
-def generate_python_code(transcripted_md="/home/satvir/Downloads/MarkdownSatvir/steps/01_get_youtube_transcript.md",output_md="/home/satvir/Downloads/MarkdownSatvir/steps/05_save_implementation_markdown.md"):
-    messages = prompt3.format_messages(transcript_md=transcripted_md,
-            output_md=(output_md))
-    response = llm.invoke(messages)
-
-
-
-
 # ============================================================
 # MAIN
 # ============================================================
 
 if __name__ == "__main__":
 
-#     print()
-#     print("=" * 60)
-#     print("STARTING LANGGRAPH")
-#     print("=" * 60)
-#
-#     print(
-#         f"Output directory: {OUTPUT_PATH}"
-#     )
-#
-#     print(
-#         f"Steps directory: {STEPS_PATH}"
-#     )
-#
-#     # --------------------------------------------------------
-#     # INITIAL STATE
-#     # --------------------------------------------------------
-#
-#     initial_state = State(
-#         video_url=(
-#             "https://www.youtube.com/watch?v=FJHyCAi4GcY"
-#         ),
-#         where_to_save_transcript="transcript.txt"
-#     )
-#
-#     # --------------------------------------------------------
-#     # BUILD GRAPH
-#     # --------------------------------------------------------
-#
-#     graph = build_graph_langchain()
-#
-#     # --------------------------------------------------------
-#     # RUN GRAPH
-#     # --------------------------------------------------------
-#
-#     final_state = graph.invoke(
-#         initial_state
-#     )
-#
-#     # --------------------------------------------------------
-#     # COMPLETED
-#     # --------------------------------------------------------
-#
-#     print()
-#     print("=" * 60)
-#     print("WORKFLOW COMPLETED")
-#     print("=" * 60)
-#
-#     print()
-#     print("Generated files:")
-#     print()
-#
-#     print(
-#         f"Transcript:"
-#     )
-#
-#     print(
-#         f"  {initial_state.where_to_save_transcript}"
-#     )
-#
-#     print()
-#
-#     print(
-#         f"Technical Markdown:"
-#     )
-#
-#     print(
-#         f"  {final_state['output_file']}"
-#     )
-#
-#     print()
-#
-#     print(
-#         f"Implementation Markdown:"
-#     )
-#
-#     print(
-#         f"  {final_state['python_output_file']}"
-#     )
-#
-#     print()
-#
-#     print(
-#         f"Technical Markdown characters:"
-#     )
-#
-#     print(
-#         f"  {len(final_state['transcription_md_file_str'])}"
-#     )
-#
-#     print()
-#
-#     print(
-#         f"Implementation Markdown characters:"
-#     )
-#
-#     print(
-#         f"  {len(final_state['python_code_transcript'])}"
-#     )
-#
-#     print()
-#
-#     print(
-#         f"Step files:"
-#     )
-#
-#     print(
-#         f"  {STEPS_PATH}"
-#     )
-#
-#     print()
-#     print("=" * 60)
-#     print("DONE")
-#     print("=" * 60)
+    print()
+    print("=" * 70)
+    print("STARTING LANGGRAPH AI CODE GENERATION WORKFLOW")
+    print("=" * 70)
+
+    print()
+    print(
+        f"Output directory:"
+        f"\n{OUTPUT_PATH}"
+    )
+
+    print()
+    print(
+        f"Steps directory:"
+        f"\n{STEPS_PATH}"
+    )
+
+    print()
+    print(
+        f"Generated project directory:"
+        f"\n{GENERATED_PROJECT_PATH}"
+    )
+
+    # --------------------------------------------------------
+    # INITIAL STATE
+    # --------------------------------------------------------
+
+    initial_state = State(
+        video_url=(
+            "https://www.youtube.com/watch?v=FJHyCAi4GcY"
+        ),
+        where_to_save_transcript="transcript.txt"
+    )
+
+    # --------------------------------------------------------
+    # BUILD GRAPH
+    # --------------------------------------------------------
+
+    graph = build_graph_langchain()
+
+    # --------------------------------------------------------
+    # RUN GRAPH
+    # --------------------------------------------------------
+
+    final_state = graph.invoke(
+        initial_state
+    )
+
+    # --------------------------------------------------------
+    # COMPLETED
+    # --------------------------------------------------------
+
+    print()
+    print("=" * 70)
+    print("WORKFLOW COMPLETED")
+    print("=" * 70)
+
+    print()
+
+    print(
+        "Generated project:"
+    )
+
+    print(
+        f"  {final_state['generated_project_path']}"
+    )
+
+    print()
+
+    print(
+        "Project files:"
+    )
+
+    project_path = Path(
+        final_state[
+            "generated_project_path"
+        ]
+    )
+
+    for file in sorted(
+        project_path.rglob("*")
+    ):
+
+        if file.is_file():
+
+            print(
+                f"  📄 "
+                f"{file.relative_to(project_path)}"
+            )
+
+    print()
+
+    print(
+        "Step files:"
+    )
+
+    print(
+        f"  {STEPS_PATH}"
+    )
+
+    print()
+
+    print("=" * 70)
+    print("DONE")
+    print("=" * 70)
