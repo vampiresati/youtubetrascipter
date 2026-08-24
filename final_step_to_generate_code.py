@@ -2,11 +2,15 @@ from pathlib import Path
 import re
 
 from pydantic import BaseModel
+
 from langgraph.graph import StateGraph, START, END
+
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 
 from youtubetranscripter import get_transcript_from_url
+
+from IPython.display import Image, display
 
 
 # ============================================================
@@ -22,7 +26,9 @@ OUTPUT_PATH = Path(
 
 STEPS_PATH = OUTPUT_PATH / "steps"
 
-OUTPUT_FILE = OUTPUT_PATH / "transcript_analysis.md"
+OUTPUT_FILE = (
+    OUTPUT_PATH / "transcript_analysis.md"
+)
 
 PYTHON_OUTPUT_FILE = (
     OUTPUT_PATH / "output_python_code.md"
@@ -36,9 +42,15 @@ GRAPH_IMAGE_PATH = (
     OUTPUT_PATH / "langgraph.png"
 )
 
-##
-SUMMARY_FILE = OUTPUT_PATH / "summary.md"
-PDF_FILE = OUTPUT_PATH / "summary.pdf"
+SUMMARY_FILE = (
+    OUTPUT_PATH / "summary.md"
+)
+
+PDF_FILE = (
+    OUTPUT_PATH / "summary.pdf"
+)
+
+
 # ============================================================
 # CREATE DIRECTORIES
 # ============================================================
@@ -65,12 +77,14 @@ GENERATED_PROJECT_PATH.mkdir(
 
 llm = ChatOllama(
     model=OLLAMA_MODEL,
-    temperature=0
+    temperature=0,
+    num_ctx=32768,
 )
 
 llm2 = ChatOllama(
     model=OLLAMA_MODEL2,
-    temperature=0
+    temperature=0,
+    num_ctx=32768,
 )
 
 
@@ -80,34 +94,62 @@ llm2 = ChatOllama(
 
 class State(BaseModel):
 
+    # --------------------------------------------------------
+    # Input
+    # --------------------------------------------------------
+
     video_url: str = (
         "https://www.youtube.com/watch?v=FJHyCAi4GcY"
     )
 
-    where_to_save_transcript: str = "transcript.txt"
+    where_to_save_transcript: str = (
+        "transcript.txt"
+    )
+
+    # --------------------------------------------------------
+    # Transcript
+    # --------------------------------------------------------
 
     transcript: str = ""
 
-    # Step 2
+    # --------------------------------------------------------
+    # Technical Markdown
+    # --------------------------------------------------------
+
     transcription_md_file_str: str = ""
 
-    # Step 4
-    python_code_transcript: str = ""
-
-    # Step 3
     output_file: str = ""
 
-    # Step 5
+    # --------------------------------------------------------
+    # Implementation Markdown
+    # --------------------------------------------------------
+
+    python_code_transcript: str = ""
+
     python_output_file: str = ""
 
-    # Step 6
+    # --------------------------------------------------------
+    # Generated Python project
+    # --------------------------------------------------------
+
     generated_project_spec: str = ""
 
-    # Step 7
     generated_project_path: str = ""
+
+    # --------------------------------------------------------
+    # Summary
+    # --------------------------------------------------------
+
     summary: str = ""
+
     summary_file: str = ""
+
+    # --------------------------------------------------------
+    # PDF
+    # --------------------------------------------------------
+
     pdf_file: str = ""
+
 
 # ============================================================
 # PROMPT 1
@@ -116,7 +158,6 @@ class State(BaseModel):
 
 prompt = ChatPromptTemplate.from_messages(
     [
-
         (
             "system",
             """
@@ -215,7 +256,6 @@ IMPORTANT:
 - Return ONLY Markdown.
 """
         ),
-
         (
             "human",
             """
@@ -230,7 +270,7 @@ Here is the video transcript:
 Convert this transcript into the requested technical
 Markdown document.
 """
-        )
+        ),
     ]
 )
 
@@ -242,7 +282,6 @@ Markdown document.
 
 prompt2 = ChatPromptTemplate.from_messages(
     [
-
         (
             "system",
             """
@@ -257,10 +296,7 @@ Your task is to create a second Markdown document focused
 on HOW TO IMPLEMENT the technical concepts described in
 the video.
 
-The document should be useful to a Python developer who
-wants to reproduce the implementation.
-
-Include sections such as:
+Include:
 
 # Implementation Guide
 
@@ -271,8 +307,8 @@ actually mentioned in the transcript.
 
 ## 2. Project Structure
 
-Show a suggested project structure only when it is
-supported by the transcript.
+Show a suggested project structure only when supported
+by the transcript.
 
 ## 3. Implementation Steps
 
@@ -332,7 +368,7 @@ supported by the transcript.
 
 IMPORTANT:
 
-- Do NOT invent APIs that are not supported by the transcript.
+- Do NOT invent APIs.
 - Do NOT invent libraries.
 - Do NOT invent agent names.
 - Do NOT invent functionality.
@@ -341,13 +377,9 @@ IMPORTANT:
   implementation skeleton based ONLY on the concepts
   explicitly supported by the transcript.
 - Clearly mark implementation assumptions.
-- Use Python code blocks.
-- Use Markdown headings.
-- Use Mermaid diagrams where useful.
 - Return ONLY Markdown.
 """
         ),
-
         (
             "human",
             """
@@ -367,7 +399,7 @@ IMPORTANT:
 
 Create the implementation-focused Markdown document.
 """
-        )
+        ),
     ]
 )
 
@@ -379,7 +411,6 @@ Create the implementation-focused Markdown document.
 
 prompt3 = ChatPromptTemplate.from_messages(
     [
-
         (
             "system",
             """
@@ -405,31 +436,6 @@ DO NOT generate one large Python file.
 Generate a REAL PROJECT containing multiple files whenever
 the implementation requires multiple components.
 
-The project will be saved automatically into:
-
-generated_project/
-
-============================================================
-PROJECT STRUCTURE
-============================================================
-
-Create appropriate folders and files.
-
-For example:
-
-generated_project/
-    main.py
-    requirements.txt
-    agents/
-        invoice_agent.py
-        tax_agent.py
-    tools/
-        tax_tools.py
-    models/
-        schemas.py
-
-Only create files that are actually needed.
-
 ============================================================
 FILE FORMAT
 ============================================================
@@ -449,13 +455,6 @@ You MUST return every file using this exact format:
 
 ===== END FILE =====
 
-
-===== FILE: requirements.txt =====
-
-<complete requirements>
-
-===== END FILE =====
-
 ============================================================
 RULES
 ============================================================
@@ -468,7 +467,7 @@ RULES
 
 4. Generate all required functions.
 
-5. Generate requirements.txt.
+5. Generate requirements.txt when dependencies are needed.
 
 6. Use relative imports correctly.
 
@@ -481,24 +480,29 @@ RULES
 10. Do not put multiple Python modules into one file
     when they logically belong in separate modules.
 
-11. Do not invent functionality that is unsupported by
-    the transcript or implementation Markdown.
+11. Do not invent unsupported functionality.
 
 12. Do not invent external APIs.
 
-13. Use the libraries mentioned in the source material
+13. Use libraries mentioned in the source material
     when appropriate.
 
-14. If the source does not provide exact implementation
-    details, create a reasonable implementation based
-    only on the documented concepts.
+14. If exact implementation details are unavailable,
+    create a reasonable implementation based only on
+    documented concepts.
 
-15. The generated project should be runnable after installing
+15. The project should be runnable after installing
     requirements.txt.
 
-16. Do not include explanations outside the FILE sections.
+16. Do not include explanations outside FILE sections.
 
 17. Return ONLY FILE sections.
+"""
+        ),
+        (
+            "human",
+            """
+Generate the complete multi-file Python project now.
 
 ============================================================
 ORIGINAL TRANSCRIPT
@@ -507,26 +511,12 @@ ORIGINAL TRANSCRIPT
 {transcript}
 
 ============================================================
-END ORIGINAL TRANSCRIPT
-============================================================
-
-
-============================================================
 IMPLEMENTATION MARKDOWN
 ============================================================
 
 {implementation_markdown}
 
 ============================================================
-END IMPLEMENTATION MARKDOWN
-============================================================
-"""
-        ),
-
-        (
-            "human",
-            """
-Generate the complete multi-file Python project now.
 
 Remember:
 
@@ -538,79 +528,101 @@ code
 
 Generate every required file.
 """
-        )
+        ),
+    ]
+)
+
+
+# ============================================================
+# PROMPT 4
+# TRANSCRIPT -> SUMMARY
+# ============================================================
+
+summary_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """
+You are a technical content summarizer.
+
+Read the provided video transcript and create a concise,
+developer-focused summary.
+
+Include:
+
+# Summary
+
+## Main Topic
+
+## Key Concepts
+
+## Technologies
+
+## Workflow
+
+## Important Technical Lessons
+
+## Key Takeaways
+
+IMPORTANT:
+
+- Use only information supported by the transcript.
+- Do not invent facts.
+- Preserve technical names.
+- Return ONLY Markdown.
+"""
+        ),
+        (
+            "human",
+            """
+================ TRANSCRIPT ================
+
+{transcript}
+
+================ END TRANSCRIPT =============
+
+Create the summary.
+"""
+        ),
     ]
 )
 
 
 # ============================================================
 # HELPER
-# REMOVE MARKDOWN CODE FENCES
+# CLEAN MARKDOWN
 # ============================================================
 
-def clean_markdown(markdown: str) -> str:
+def clean_markdown(
+    markdown: str
+) -> str:
 
     markdown = markdown.strip()
 
-    if markdown.startswith("```markdown"):
-
+    if markdown.startswith(
+        "```markdown"
+    ):
         markdown = markdown[
             len("```markdown"):
         ].strip()
 
-    elif markdown.startswith("```"):
-
+    elif markdown.startswith(
+        "```"
+    ):
         markdown = markdown[
             len("```"):
         ].strip()
 
-    if markdown.endswith("```"):
-
+    if markdown.endswith(
+        "```"
+    ):
         markdown = markdown[
             :-len("```")
         ].strip()
 
     return markdown
 
-def generate_summary(state: State):
-    print("=" * 60)
-    print("STEP : GENERATE SUMMARY")
-    print("=" * 60)
-    messages = summary_prompt.format_messages(
-        transcript=state.transcript
-    )
-    response = llm2.invoke(messages)
-    state.summary = response.content
-    save_step(
-        3,
-        "generate_summary",
-        state.summary
-    )
 
-    return state
-def save_summary(state: State):
-    print("=" * 60)
-    print("STEP : SAVE SUMMARY")
-    print("=" * 60)
-
-    SUMMARY_FILE.write_text(
-        state.summary,
-        encoding="utf-8"
-    )
-
-    state.summary_file = str(
-        SUMMARY_FILE
-    )
-
-    save_step(
-        4,
-        "save_summary",
-        state.summary
-    )
-
-    return state
-def save_pdf_final(state:STATE):
-    pass
 # ============================================================
 # HELPER
 # SAVE EACH STEP
@@ -655,14 +667,11 @@ def get_youtube_transcript(
         f"Video URL: {state.video_url}"
     )
 
-    print(
-        f"Saving transcript to: "
-        f"{state.where_to_save_transcript}"
-    )
-
     transcript = get_transcript_from_url(
         url=state.video_url,
-        where_to_save=state.where_to_save_transcript
+        where_to_save=(
+            state.where_to_save_transcript
+        )
     )
 
     state.transcript = transcript
@@ -716,13 +725,17 @@ def analyze_transcript(
         transcript=state.transcript
     )
 
-    response = llm.invoke(messages)
+    response = llm.invoke(
+        messages
+    )
 
     markdown = clean_markdown(
         response.content
     )
 
-    state.transcription_md_file_str = markdown
+    state.transcription_md_file_str = (
+        markdown
+    )
 
     print(
         f"Generated Markdown characters: "
@@ -740,6 +753,236 @@ def analyze_transcript(
 
 # ============================================================
 # NODE 3
+# GENERATE SUMMARY
+# ============================================================
+
+def generate_summary(
+    state: State
+):
+
+    print()
+    print("=" * 60)
+    print("STEP 3: GENERATE SUMMARY")
+    print("=" * 60)
+
+    messages = summary_prompt.format_messages(
+        transcript=state.transcript
+    )
+
+    response = llm2.invoke(
+        messages
+    )
+
+    summary = clean_markdown(
+        response.content
+    )
+
+    state.summary = summary
+
+    print(
+        f"Summary characters: "
+        f"{len(summary)}"
+    )
+
+    save_step(
+        3,
+        "generate_summary",
+        summary
+    )
+
+    return state
+
+
+# ============================================================
+# NODE 4
+# SAVE SUMMARY
+# ============================================================
+
+def save_summary(
+    state: State
+):
+
+    print()
+    print("=" * 60)
+    print("STEP 4: SAVE SUMMARY")
+    print("=" * 60)
+
+    SUMMARY_FILE.write_text(
+        state.summary,
+        encoding="utf-8"
+    )
+
+    state.summary_file = (
+        str(SUMMARY_FILE)
+    )
+
+    save_step(
+        4,
+        "save_summary",
+        f"""# Step 4 - Save Summary
+
+## File
+
+`{SUMMARY_FILE}`
+
+## Summary
+
+{state.summary}
+"""
+    )
+
+    return state
+
+
+# ============================================================
+# NODE 5
+# GENERATE PDF
+# ============================================================
+
+def save_pdf_final(
+    state: State
+):
+
+    print()
+    print("=" * 60)
+    print("STEP 5: GENERATE SUMMARY PDF")
+    print("=" * 60)
+
+    try:
+
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import (
+            getSampleStyleSheet,
+            ParagraphStyle
+        )
+        from reportlab.platypus import (
+            SimpleDocTemplate,
+            Paragraph,
+            Spacer
+        )
+        from reportlab.lib.enums import TA_LEFT
+
+    except ImportError:
+
+        raise ImportError(
+            "ReportLab is required. "
+            "Install with: pip install reportlab"
+        )
+
+    document = SimpleDocTemplate(
+        str(PDF_FILE),
+        pagesize=A4
+    )
+
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "TitleCustom",
+        parent=styles["Title"],
+        alignment=TA_LEFT
+    )
+
+    body_style = ParagraphStyle(
+        "BodyCustom",
+        parent=styles["BodyText"],
+        leading=14
+    )
+
+    story = []
+
+    for line in state.summary.splitlines():
+
+        line = line.strip()
+
+        if not line:
+            story.append(
+                Spacer(1, 8)
+            )
+            continue
+
+        if line.startswith("# "):
+
+            story.append(
+                Paragraph(
+                    line[2:],
+                    title_style
+                )
+            )
+
+        elif line.startswith("## "):
+
+            story.append(
+                Paragraph(
+                    line[3:],
+                    styles["Heading2"]
+                )
+            )
+
+        elif line.startswith("### "):
+
+            story.append(
+                Paragraph(
+                    line[4:],
+                    styles["Heading3"]
+                )
+            )
+
+        else:
+
+            # Basic markdown cleanup
+            text = re.sub(
+                r"\*\*(.*?)\*\*",
+                r"<b>\1</b>",
+                line
+            )
+
+            text = re.sub(
+                r"`(.*?)`",
+                r"<font name='Courier'>\1</font>",
+                text
+            )
+
+            story.append(
+                Paragraph(
+                    text,
+                    body_style
+                )
+            )
+
+    document.build(
+        story
+    )
+
+    state.pdf_file = (
+        str(PDF_FILE)
+    )
+
+    save_step(
+        5,
+        "generate_summary_pdf",
+        f"""# Step 5 - Generate Summary PDF
+
+## PDF File
+
+`{PDF_FILE}`
+
+## Source
+
+`{SUMMARY_FILE}`
+
+PDF generated successfully.
+"""
+    )
+
+    print(
+        f"PDF generated: {PDF_FILE}"
+    )
+
+    return state
+
+
+# ============================================================
+# NODE 6
 # SAVE TECHNICAL MARKDOWN
 # ============================================================
 
@@ -749,7 +992,7 @@ def save_markdown(
 
     print()
     print("=" * 60)
-    print("STEP 3: SAVING TECHNICAL MARKDOWN")
+    print("STEP 6: SAVE TECHNICAL MARKDOWN")
     print("=" * 60)
 
     OUTPUT_FILE.write_text(
@@ -757,23 +1000,14 @@ def save_markdown(
         encoding="utf-8"
     )
 
-    state.output_file = str(
-        OUTPUT_FILE
-    )
-
-    print(
-        f"Output file: {OUTPUT_FILE}"
-    )
-
-    print(
-        f"Characters: "
-        f"{len(state.transcription_md_file_str)}"
+    state.output_file = (
+        str(OUTPUT_FILE)
     )
 
     save_step(
-        3,
+        6,
         "save_markdown",
-        f"""# Step 3 - Save Technical Markdown
+        f"""# Step 6 - Save Technical Markdown
 
 ## Output File
 
@@ -793,7 +1027,7 @@ def save_markdown(
 
 
 # ============================================================
-# NODE 4
+# NODE 7
 # GENERATE IMPLEMENTATION MARKDOWN
 # ============================================================
 
@@ -803,7 +1037,7 @@ def python_code_md_file_generate(
 
     print()
     print("=" * 60)
-    print("STEP 4: GENERATE IMPLEMENTATION MARKDOWN")
+    print("STEP 7: GENERATE IMPLEMENTATION MARKDOWN")
     print("=" * 60)
 
     messages = prompt2.format_messages(
@@ -821,15 +1055,12 @@ def python_code_md_file_generate(
         response.content
     )
 
-    state.python_code_transcript = markdown
-
-    print(
-        f"Generated implementation Markdown "
-        f"characters: {len(markdown)}"
+    state.python_code_transcript = (
+        markdown
     )
 
     save_step(
-        4,
+        7,
         "generate_implementation_markdown",
         markdown
     )
@@ -838,7 +1069,7 @@ def python_code_md_file_generate(
 
 
 # ============================================================
-# NODE 5
+# NODE 8
 # SAVE IMPLEMENTATION MARKDOWN
 # ============================================================
 
@@ -848,7 +1079,7 @@ def save_markdown_python_code(
 
     print()
     print("=" * 60)
-    print("STEP 5: SAVING IMPLEMENTATION MARKDOWN")
+    print("STEP 8: SAVE IMPLEMENTATION MARKDOWN")
     print("=" * 60)
 
     PYTHON_OUTPUT_FILE.write_text(
@@ -856,24 +1087,14 @@ def save_markdown_python_code(
         encoding="utf-8"
     )
 
-    state.python_output_file = str(
-        PYTHON_OUTPUT_FILE
-    )
-
-    print(
-        f"Implementation Markdown file: "
-        f"{PYTHON_OUTPUT_FILE}"
-    )
-
-    print(
-        f"Characters: "
-        f"{len(state.python_code_transcript)}"
+    state.python_output_file = (
+        str(PYTHON_OUTPUT_FILE)
     )
 
     save_step(
-        5,
+        8,
         "save_implementation_markdown",
-        f"""# Step 5 - Save Implementation Markdown
+        f"""# Step 8 - Save Implementation Markdown
 
 ## Output File
 
@@ -893,7 +1114,7 @@ def save_markdown_python_code(
 
 
 # ============================================================
-# NODE 6
+# NODE 9
 # GENERATE MULTI-FILE PYTHON PROJECT
 # ============================================================
 
@@ -903,12 +1124,8 @@ def generate_python_code(
 
     print()
     print("=" * 60)
-    print("STEP 6: GENERATE MULTI-FILE PYTHON PROJECT")
+    print("STEP 9: GENERATE MULTI-FILE PYTHON PROJECT")
     print("=" * 60)
-
-    print(
-        "Generating project using Ollama..."
-    )
 
     messages = prompt3.format_messages(
         transcript=state.transcript,
@@ -921,22 +1138,18 @@ def generate_python_code(
         messages
     )
 
-    project_spec = response.content.strip()
+    project_spec = (
+        response.content.strip()
+    )
 
     state.generated_project_spec = (
         project_spec
     )
 
-    print(
-        f"Generated project specification "
-        f"characters: {len(project_spec)}"
-    )
-
-    # Save raw LLM response
     save_step(
-        6,
+        9,
         "generate_python_code",
-        f"""# Step 6 - Generate Python Project
+        f"""# Step 9 - Generate Python Project
 
 ## Generated Project Specification
 
@@ -949,7 +1162,7 @@ def generate_python_code(
 
 # ============================================================
 # HELPER
-# PARSE MULTI-FILE LLM RESPONSE
+# PARSE GENERATED FILES
 # ============================================================
 
 def parse_generated_files(
@@ -957,7 +1170,7 @@ def parse_generated_files(
 ) -> dict[str, str]:
 
     pattern = re.compile(
-        r"===== FILE: (.*?) =====\s*"
+        r"===== FILE:\s*(.*?)\s*=====\s*"
         r"(.*?)"
         r"\s*===== END FILE =====",
         re.DOTALL
@@ -975,17 +1188,16 @@ def parse_generated_files(
 
         content = content.strip()
 
-        if not file_path:
-            continue
+        if file_path:
 
-        files[file_path] = content
+            files[file_path] = content
 
     return files
 
 
 # ============================================================
 # HELPER
-# SAFETY CHECK FILE PATH
+# SAFE PROJECT PATH
 # ============================================================
 
 def safe_project_path(
@@ -999,25 +1211,25 @@ def safe_project_path(
         .strip()
     )
 
-    # Remove leading slash
-    relative_path = relative_path.lstrip("/")
+    relative_path = (
+        relative_path.lstrip("/")
+    )
 
     target = (
         project_root / relative_path
     ).resolve()
 
-    project_root_resolved = (
+    root = (
         project_root.resolve()
     )
 
-    # Prevent ../ escaping project directory
     if (
-        target != project_root_resolved
-        and project_root_resolved
-        not in target.parents
+        target != root
+        and root not in target.parents
     ):
+
         raise ValueError(
-            f"Unsafe file path generated: "
+            f"Unsafe generated file path: "
             f"{relative_path}"
         )
 
@@ -1025,7 +1237,7 @@ def safe_project_path(
 
 
 # ============================================================
-# NODE 7
+# NODE 10
 # SAVE PYTHON PROJECT
 # ============================================================
 
@@ -1035,7 +1247,7 @@ def save_python_project(
 
     print()
     print("=" * 60)
-    print("STEP 7: SAVE PYTHON PROJECT")
+    print("STEP 10: SAVE PYTHON PROJECT")
     print("=" * 60)
 
     project_root = (
@@ -1046,15 +1258,6 @@ def save_python_project(
         parents=True,
         exist_ok=True
     )
-
-    print(
-        f"Project directory: "
-        f"{project_root}"
-    )
-
-    # --------------------------------------------------------
-    # Parse files generated by LLM
-    # --------------------------------------------------------
 
     files = parse_generated_files(
         state.generated_project_spec
@@ -1076,16 +1279,7 @@ print("Hello")
 """
         )
 
-    print(
-        f"Files generated by LLM: "
-        f"{len(files)}"
-    )
-
     saved_files = []
-
-    # --------------------------------------------------------
-    # Save every generated file
-    # --------------------------------------------------------
 
     for relative_path, content in files.items():
 
@@ -1112,17 +1306,9 @@ print("Hello")
             f"  ✓ {relative_path}"
         )
 
-    # --------------------------------------------------------
-    # Update state
-    # --------------------------------------------------------
-
     state.generated_project_path = (
         str(project_root)
     )
-
-    # --------------------------------------------------------
-    # Save Step 7 report
-    # --------------------------------------------------------
 
     file_list = "\n".join(
         f"- `{file}`"
@@ -1130,9 +1316,9 @@ print("Hello")
     )
 
     save_step(
-        7,
+        10,
         "save_python_project",
-        f"""# Step 7 - Save Python Project
+        f"""# Step 10 - Save Python Project
 
 ## Project Directory
 
@@ -1148,11 +1334,6 @@ print("Hello")
 """
     )
 
-    print()
-    print(
-        "Python project successfully created."
-    )
-
     return state
 
 
@@ -1166,9 +1347,9 @@ def build_graph_langchain():
         State
     )
 
-    # --------------------------------------------------------
+    # ========================================================
     # NODES
-    # --------------------------------------------------------
+    # ========================================================
 
     builder.add_node(
         "get_youtube_transcript",
@@ -1179,18 +1360,22 @@ def build_graph_langchain():
         "analyze_transcript",
         analyze_transcript
     )
+
     builder.add_node(
-            "generate_summary",
-            generate_summary
-        )
+        "generate_summary",
+        generate_summary
+    )
+
     builder.add_node(
-                "save_summary",
-                save_summary
-            )
+        "save_summary",
+        save_summary
+    )
+
     builder.add_node(
-                    "save_pdf_final",
-                    save_pdf_final
-                )
+        "save_pdf_final",
+        save_pdf_final
+    )
+
     builder.add_node(
         "save_markdown",
         save_markdown
@@ -1216,30 +1401,46 @@ def build_graph_langchain():
         save_python_project
     )
 
-    # --------------------------------------------------------
-    # EDGES
-    # --------------------------------------------------------
+    # ========================================================
+    # START
+    # ========================================================
 
     builder.add_edge(
         START,
         "get_youtube_transcript"
     )
 
+    # ========================================================
+    # TRANSCRIPT -> ANALYSIS
+    # ========================================================
+
     builder.add_edge(
         "get_youtube_transcript",
         "analyze_transcript"
     )
+
+    # ========================================================
+    # SUMMARY BRANCH
+    # ========================================================
 
     builder.add_edge(
         "analyze_transcript",
         "generate_summary"
     )
 
-     builder.add_edge(
-            "generate_summary",
-            "save_summary"
-        )
-     builder.add_edge("save_summary",END)
+    builder.add_edge(
+        "generate_summary",
+        "save_summary"
+    )
+
+    builder.add_edge(
+        "save_summary",
+        "save_pdf_final"
+    )
+
+    # ========================================================
+    # TECHNICAL IMPLEMENTATION BRANCH
+    # ========================================================
 
     builder.add_edge(
         "analyze_transcript",
@@ -1266,6 +1467,18 @@ def build_graph_langchain():
         "save_python_project"
     )
 
+    # ========================================================
+    # FINAL
+    # ========================================================
+
+    # Both branches terminate independently.
+    # LangGraph waits for all reachable branches.
+
+    builder.add_edge(
+        "save_pdf_final",
+        END
+    )
+
     builder.add_edge(
         "save_python_project",
         END
@@ -1277,6 +1490,93 @@ def build_graph_langchain():
 
 
 # ============================================================
+# DISPLAY LANGGRAPH MERMAID
+# ============================================================
+
+def display_langgraph(
+    graph
+):
+
+    print()
+    print("=" * 70)
+    print("LANGGRAPH MERMAID")
+    print("=" * 70)
+
+    # --------------------------------------------------------
+    # Generate Mermaid source
+    # --------------------------------------------------------
+
+    mermaid_code = (
+        graph.get_graph().draw_mermaid()
+    )
+
+    print()
+    print(mermaid_code)
+
+    # --------------------------------------------------------
+    # Display Mermaid directly in IPython
+    # --------------------------------------------------------
+
+    try:
+
+        from IPython.display import Markdown
+
+        display(
+            Markdown(
+                "```mermaid\n"
+                + mermaid_code
+                + "\n```"
+            )
+        )
+
+    except Exception as exc:
+
+        print(
+            f"Could not display Mermaid: {exc}"
+        )
+
+    # --------------------------------------------------------
+    # Try generating PNG
+    # --------------------------------------------------------
+
+    try:
+
+        png_data = (
+            graph.get_graph().draw_mermaid_png()
+        )
+
+        GRAPH_IMAGE_PATH.write_bytes(
+            png_data
+        )
+
+        print()
+        print(
+            f"Graph PNG saved to:"
+        )
+
+        print(
+            GRAPH_IMAGE_PATH
+        )
+
+        display(
+            Image(
+                data=png_data
+            )
+        )
+
+    except Exception as exc:
+
+        print()
+        print(
+            "PNG graph generation skipped."
+        )
+
+        print(
+            f"Reason: {exc}"
+        )
+
+
+# ============================================================
 # MAIN
 # ============================================================
 
@@ -1284,55 +1584,67 @@ if __name__ == "__main__":
 
     print()
     print("=" * 70)
-    print("STARTING LANGGRAPH AI CODE GENERATION WORKFLOW")
+    print(
+        "STARTING LANGGRAPH AI CODE GENERATION WORKFLOW"
+    )
     print("=" * 70)
 
     print()
     print(
-        f"Output directory:"
-        f"\n{OUTPUT_PATH}"
+        f"Output directory:\n"
+        f"{OUTPUT_PATH}"
     )
 
     print()
     print(
-        f"Steps directory:"
-        f"\n{STEPS_PATH}"
+        f"Steps directory:\n"
+        f"{STEPS_PATH}"
     )
 
     print()
     print(
-        f"Generated project directory:"
-        f"\n{GENERATED_PROJECT_PATH}"
+        f"Generated project directory:\n"
+        f"{GENERATED_PROJECT_PATH}"
     )
 
-    # --------------------------------------------------------
+    # ========================================================
     # INITIAL STATE
-    # --------------------------------------------------------
+    # ========================================================
 
     initial_state = State(
         video_url=(
             "https://www.youtube.com/watch?v=FJHyCAi4GcY"
         ),
-        where_to_save_transcript="transcript.txt"
+        where_to_save_transcript=(
+            "transcript.txt"
+        )
     )
 
-    # --------------------------------------------------------
+    # ========================================================
     # BUILD GRAPH
-    # --------------------------------------------------------
+    # ========================================================
 
     graph = build_graph_langchain()
 
-    # --------------------------------------------------------
+    # ========================================================
+    # DISPLAY GRAPH
+    # ========================================================
+
+    display_langgraph(
+        graph
+    )
+
+    # ========================================================
     # RUN GRAPH
-    # --------------------------------------------------------
+    # ========================================================
 
     final_state = graph.invoke(
         initial_state
     )
 
-    # --------------------------------------------------------
+    # ========================================================
     # COMPLETED
-    # --------------------------------------------------------
+    # ========================================================
 
     print()
     print("=" * 70)
@@ -1342,23 +1654,66 @@ if __name__ == "__main__":
     print()
 
     print(
-        "Generated project:"
+        "Summary:"
     )
 
     print(
-        f"  {final_state['generated_project_path']}"
+        f"  {final_state.get('summary_file')}"
     )
 
     print()
 
     print(
-        "Project files:"
+        "PDF:"
     )
+
+    print(
+        f"  {final_state.get('pdf_file')}"
+    )
+
+    print()
+
+    print(
+        "Technical Markdown:"
+    )
+
+    print(
+        f"  {final_state.get('output_file')}"
+    )
+
+    print()
+
+    print(
+        "Implementation Markdown:"
+    )
+
+    print(
+        f"  {final_state.get('python_output_file')}"
+    )
+
+    print()
+
+    print(
+        "Generated project:"
+    )
+
+    print(
+        f"  {final_state.get('generated_project_path')}"
+    )
+
+    # ========================================================
+    # LIST PROJECT FILES
+    # ========================================================
 
     project_path = Path(
         final_state[
             "generated_project_path"
         ]
+    )
+
+    print()
+    print(
+        "Project files:"
     )
 
     for file in sorted(
@@ -1372,18 +1727,24 @@ if __name__ == "__main__":
                 f"{file.relative_to(project_path)}"
             )
 
-    print()
+    # ========================================================
+    # STEP FILES
+    # ========================================================
 
+    print()
     print(
         "Step files:"
     )
 
-    print(
-        f"  {STEPS_PATH}"
-    )
+    for file in sorted(
+        STEPS_PATH.glob("*.md")
+    ):
+
+        print(
+            f"  📄 {file.name}"
+        )
 
     print()
-
     print("=" * 70)
     print("DONE")
     print("=" * 70)
