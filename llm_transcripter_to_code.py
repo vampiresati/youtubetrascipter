@@ -1,85 +1,339 @@
 from typing import TypedDict
 from pathlib import Path
-from pydantic import BaseModel, Field
+from datetime import datetime
 import json
+from pydantic import BaseModel, Field
+from langgraph.graph import (
+    StateGraph,
+    START,
+    END,
+)
 
-from langgraph.graph import StateGraph, START, END
 from langchain_ollama import ChatOllama
 
-from IPython.display import Image, display
-
-
-# ============================================================
-# Ollama
-# ============================================================
-
-llm = ChatOllama(
-    model="qwen2.5-coder:7b",
-    temperature=0
+from IPython.display import (
+    Image,
+    display,
 )
 
 
 # ============================================================
-# 2. PYDANTIC MODELS
+# CONFIGURATION
+# ============================================================
+
+OLLAMA_MODEL = "qwen2.5-coder:7b"
+
+OUTPUT_PATH = Path(
+    "/home/satvir/Downloads/TestCreation"
+)
+
+STEPS_PATH = OUTPUT_PATH / "steps"
+
+GRAPH_IMAGE_PATH = Path(
+    "/home/satvir/youtubetrascipter/langgraph.png"
+)
+
+
+# ============================================================
+# OLLAMA
+# ============================================================
+
+llm = ChatOllama(
+    model=OLLAMA_MODEL,
+    temperature=0,
+)
+
+
+# ============================================================
+# PYDANTIC MODELS
 # ============================================================
 
 class ProjectFile(BaseModel):
-    path: str = Field(description="Relative path of the file")
-    description: str = Field(description="What this file should contain")
+
+    path: str = Field(
+        description="Relative path of the file"
+    )
+
+    description: str = Field(
+        description="What this file should contain"
+    )
+
+
 class ProjectStructure(BaseModel):
+
     project_name: str
+
     files: list[ProjectFile]
+
+
 class GeneratedFile(BaseModel):
+
     path: str
+
     content: str
+
+
 class GeneratedProject(BaseModel):
+
     files: list[GeneratedFile]
 
 
 # ============================================================
-# 3. LANGGRAPH STATE
+# LANGGRAPH STATE
 # ============================================================
 
 class State(TypedDict):
+
     transcript: str
+
     analysis: str
+
     project_structure: dict
+
     files: dict
+
     review: str
+
     output_path: str
 
+    saved_files: int
+
 
 # ============================================================
-# Save LangGraph as PNG
+# STEP MARKDOWN LOGGER
 # ============================================================
 
-def save_graph_png(app, output_path: str):
-    output_path = Path(output_path)
+class StepMarkdownLogger:
+
+    def __init__(
+        self,
+        project_path: Path,
+    ):
+
+        self.project_path = Path(
+            project_path
+        )
+
+        self.steps_path = (
+            self.project_path / "steps"
+        )
+
+        self.steps_path.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+    # --------------------------------------------------------
+    # Create a new step file
+    # --------------------------------------------------------
+
+    def create_step(
+        self,
+        step_number: int,
+        step_name: str,
+    ):
+
+        filename = (
+            f"{step_number:02d}_"
+            f"{step_name}.md"
+        )
+
+        path = (
+            self.steps_path / filename
+        )
+
+        content = f"""# Step {step_number}: {step_name}
+
+**Started:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+---
+
+"""
+
+        path.write_text(
+            content,
+            encoding="utf-8",
+        )
+
+        return path
+
+    # --------------------------------------------------------
+    # Write Markdown section
+    # --------------------------------------------------------
+
+    def write(
+        self,
+        path: Path,
+        title: str,
+        content: str,
+    ):
+
+        with path.open(
+            "a",
+            encoding="utf-8",
+        ) as f:
+
+            f.write(
+                f"\n## {title}\n\n"
+            )
+
+            f.write(
+                content
+            )
+
+            if not content.endswith("\n"):
+
+                f.write("\n")
+
+            f.write("\n---\n")
+
+    # --------------------------------------------------------
+    # Write code / text block
+    # --------------------------------------------------------
+
+    def write_code(
+        self,
+        path: Path,
+        title: str,
+        content: str,
+        language: str = "text",
+    ):
+
+        with path.open(
+            "a",
+            encoding="utf-8",
+        ) as f:
+
+            f.write(
+                f"\n## {title}\n\n"
+            )
+
+            f.write(
+                f"```{language}\n"
+            )
+
+            f.write(
+                content
+            )
+
+            if not content.endswith("\n"):
+
+                f.write("\n")
+
+            f.write(
+                "```\n\n---\n"
+            )
+
+    # --------------------------------------------------------
+    # Write JSON
+    # --------------------------------------------------------
+
+    def write_json(
+        self,
+        path: Path,
+        title: str,
+        data,
+    ):
+
+        content = json.dumps(
+            data,
+            indent=4,
+            ensure_ascii=False,
+        )
+
+        self.write_code(
+            path,
+            title,
+            content,
+            "json",
+        )
+
+
+# ============================================================
+# LOGGER
+# ============================================================
+
+logger = StepMarkdownLogger(
+    OUTPUT_PATH
+)
+
+
+# ============================================================
+# SAVE LANGGRAPH PNG
+# ============================================================
+
+def save_graph_png(
+    app,
+    output_path: str,
+):
+
+    output_path = Path(
+        output_path
+    )
+
     output_path.parent.mkdir(
         parents=True,
-        exist_ok=True
+        exist_ok=True,
     )
-    png_bytes = app.get_graph().draw_mermaid_png()
-    output_path.write_bytes(png_bytes)
-    return str(output_path)
+
+    png_bytes = (
+        app
+        .get_graph()
+        .draw_mermaid_png()
+    )
+
+    output_path.write_bytes(
+        png_bytes
+    )
+
+    return str(
+        output_path
+    )
 
 
 # ============================================================
-# Node 1: Analyze Transcript
+# STEP 1
+# ANALYZE TRANSCRIPT
 # ============================================================
 
-def analyze_transcript(state: State):
-    print("\n")
+def analyze_transcript(
+    state: State,
+):
+
+    print()
     print("=" * 70)
-    print("🔍 STEP 1: ANALYZING YOUTUBE TRANSCRIPT")
+    print(
+        "🔍 STEP 1: ANALYZING YOUTUBE TRANSCRIPT"
+    )
     print("=" * 70)
+
+    step_file = logger.create_step(
+        1,
+        "analyze_transcript",
+    )
+
+    # --------------------------------------------------------
+    # Save input
+    # --------------------------------------------------------
+
+    logger.write_code(
+        step_file,
+        "Input Transcript",
+        state["transcript"],
+        "text",
+    )
+
+    # --------------------------------------------------------
+    # Prompt
+    # --------------------------------------------------------
+
     prompt = f"""
 You are a senior Python software architect.
 
 Analyze this YouTube tutorial transcript.
 
-Your job is to understand exactly what project the
-tutorial is teaching.
+Your job is to understand exactly what
+project the tutorial is teaching.
 
 Extract:
 
@@ -97,9 +351,11 @@ Extract:
 12. File/module organization
 13. Important implementation details
 
-Do NOT generate code yet.
+IMPORTANT:
 
-Give a detailed technical analysis.
+- Do NOT generate code yet.
+- Do NOT invent unnecessary features.
+- Base the analysis on the transcript.
 
 YOUTUBE TRANSCRIPT
 ==================
@@ -107,28 +363,91 @@ YOUTUBE TRANSCRIPT
 {state["transcript"]}
 """
 
-    response = llm.invoke(prompt)
+    logger.write_code(
+        step_file,
+        "LLM Prompt",
+        prompt,
+        "text",
+    )
 
-    print("✅ Transcript analysis completed")
+    # --------------------------------------------------------
+    # Call LLM
+    # --------------------------------------------------------
+
+    try:
+
+        response = llm.invoke(
+            prompt
+        )
+
+    except Exception as e:
+
+        logger.write_code(
+            step_file,
+            "ERROR",
+            f"{type(e).__name__}: {e}",
+            "text",
+        )
+
+        raise
+
+    analysis = response.content
+
+    # --------------------------------------------------------
+    # Save output
+    # --------------------------------------------------------
+
+    logger.write_code(
+        step_file,
+        "LLM Output - Analysis",
+        analysis,
+        "text",
+    )
+
+    print(
+        "✅ Transcript analysis completed"
+    )
 
     return {
-        "analysis": response.content
+        "analysis": analysis
     }
 
 
 # ============================================================
-# 6. NODE: DESIGN PROJECT STRUCTURE
+# STEP 2
+# DESIGN PROJECT
 # ============================================================
 
-def design_project(state: State):
-    print("\n")
+def design_project(
+    state: State,
+):
+
+    print()
     print("=" * 70)
-    print("🏗️ STEP 2: DESIGNING PROJECT STRUCTURE")
+    print(
+        "🏗️ STEP 2: DESIGNING PROJECT STRUCTURE"
+    )
     print("=" * 70)
 
-    structured_llm = llm.with_structured_output(
-        ProjectStructure
+    step_file = logger.create_step(
+        2,
+        "design_project",
     )
+
+    # --------------------------------------------------------
+    # Save previous step
+    # --------------------------------------------------------
+
+    logger.write_code(
+        step_file,
+        "Previous Step - Analysis",
+        state["analysis"],
+        "text",
+    )
+
+    # --------------------------------------------------------
+    # Prompt
+    # --------------------------------------------------------
 
     prompt = f"""
 You are a senior Python software architect.
@@ -138,9 +457,11 @@ design a proper Python project structure.
 
 Do NOT put everything into main.py.
 
-Separate responsibilities into appropriate modules.
+Separate responsibilities into appropriate
+modules.
 
-For example, depending on the tutorial you might create:
+Depending on the tutorial, use structures
+such as:
 
 main.py
 config.py
@@ -155,74 +476,168 @@ models/
 requirements.txt
 README.md
 
-Only create files that are actually useful for
-the project.
-
-The structure must be based on the tutorial.
+Only create files that are actually useful.
 
 TUTORIAL ANALYSIS
 =================
 
 {state["analysis"]}
+
+IMPORTANT:
+
+1. Every file must have a relative path.
+2. Every file must have a description.
+3. Keep responsibilities separated.
+4. Do not invent unnecessary files.
 """
 
-    result = structured_llm.invoke(prompt)
+    logger.write_code(
+        step_file,
+        "LLM Prompt",
+        prompt,
+        "text",
+    )
 
-    print("\n📁 PROJECT STRUCTURE:")
+    # --------------------------------------------------------
+    # Structured output
+    # --------------------------------------------------------
+
+    structured_llm = (
+        llm.with_structured_output(
+            ProjectStructure
+        )
+    )
+
+    try:
+
+        result = structured_llm.invoke(
+            prompt
+        )
+
+    except Exception as e:
+
+        logger.write_code(
+            step_file,
+            "ERROR",
+            f"{type(e).__name__}: {e}",
+            "text",
+        )
+
+        raise
+
+    structure = result.model_dump()
+
+    # --------------------------------------------------------
+    # Save structure
+    # --------------------------------------------------------
+
+    logger.write_json(
+        step_file,
+        "Generated Project Structure",
+        structure,
+    )
+
+    print()
+    print(
+        f"📁 Project: "
+        f"{result.project_name}"
+    )
+
+    print(
+        f"📦 Files planned: "
+        f"{len(result.files)}"
+    )
 
     for file in result.files:
 
         print(
             f"   📄 {file.path}"
-            f" → {file.description}"
         )
 
     return {
-        "project_structure": result.model_dump()
+        "project_structure": structure
     }
 
 
 # ============================================================
-# 7. NODE: GENERATE PROJECT FILES
+# STEP 3
+# GENERATE FILES
 # ============================================================
 
-def generate_files(state: State):
-    print("\n")
+def generate_files(
+    state: State,
+):
+
+    print()
     print("=" * 70)
-    print("💻 STEP 3: GENERATING PROJECT FILES")
-    print("=" * 70)
-    structured_llm = llm.with_structured_output(
-        GeneratedProject
+    print(
+        "💻 STEP 3: GENERATING PROJECT FILES"
     )
-    structure = state["project_structure"]
+    print("=" * 70)
+
+    step_file = logger.create_step(
+        3,
+        "generate_files",
+    )
+
+    structure = state[
+        "project_structure"
+    ]
+
     files_description = "\n".join(
-        f"- {file['path']}: {file['description']}"
+        f"- {file['path']}: "
+        f"{file['description']}"
         for file in structure["files"]
     )
+
+    # --------------------------------------------------------
+    # Save analysis
+    # --------------------------------------------------------
+
+    logger.write_code(
+        step_file,
+        "Tutorial Analysis",
+        state["analysis"],
+        "text",
+    )
+
+    # --------------------------------------------------------
+    # Save requested files
+    # --------------------------------------------------------
+
+    logger.write_code(
+        step_file,
+        "Requested Project Files",
+        files_description,
+        "text",
+    )
+
+    # --------------------------------------------------------
+    # Prompt
+    # --------------------------------------------------------
 
     prompt = f"""
 You are an expert Python developer.
 
-Create the complete Python project described below.
+Create the COMPLETE Python project
+described below.
 
 TUTORIAL ANALYSIS
 =================
 
 {state["analysis"]}
-
 
 PROJECT STRUCTURE
 =================
 
 {files_description}
 
-
 IMPORTANT REQUIREMENTS
-=====================
+======================
 
-1. Generate real runnable Python code.
+1. Generate REAL runnable Python code.
 
-2. Generate every requested file.
+2. Generate EVERY requested file.
 
 3. Keep responsibilities separated.
 
@@ -240,24 +655,135 @@ IMPORTANT REQUIREMENTS
 
 10. Make the project internally consistent.
 
-11. Use the APIs and frameworks described in
-the tutorial whenever possible.
+11. Use the APIs and frameworks
+    described in the tutorial.
 
-Return every file with its relative path
-and complete content.
+12. Return every file with:
+
+    path
+    content
+
+13. The content must be complete.
+
+14. Do not summarize the files.
+
+15. Do not omit any requested file.
+
+16. Use relative paths.
+
+17. Create __init__.py where needed.
+
+18. Make imports consistent with
+    the generated directory structure.
 """
 
-    result = structured_llm.invoke(prompt)
+    logger.write_code(
+        step_file,
+        "LLM Prompt",
+        prompt,
+        "text",
+    )
+
+    # --------------------------------------------------------
+    # Generate
+    # --------------------------------------------------------
+
+    structured_llm = (
+        llm.with_structured_output(
+            GeneratedProject
+        )
+    )
+
+    try:
+
+        result = structured_llm.invoke(
+            prompt
+        )
+
+    except Exception as e:
+
+        logger.write_code(
+            step_file,
+            "ERROR",
+            f"{type(e).__name__}: {e}",
+            "text",
+        )
+
+        raise
+
+    # --------------------------------------------------------
+    # Process files
+    # --------------------------------------------------------
 
     files = {}
 
-    for file in result.files:
+    print()
 
-        files[file.path] = file.content
+    for generated_file in result.files:
+
+        path = generated_file.path
+
+        content = generated_file.content
+
+        if not path:
+
+            continue
+
+        if not content:
+
+            logger.write(
+                step_file,
+                "WARNING",
+                f"Empty file content: `{path}`",
+            )
+
+            continue
+
+        files[path] = content
 
         print(
-            f"   ✅ Generated: {file.path}"
+            f"   ✅ Generated: {path}"
         )
+
+        # ----------------------------------------------------
+        # SAVE FULL GENERATED FILE TO STEP MD
+        # ----------------------------------------------------
+
+        logger.write_code(
+            step_file,
+            f"Generated File: {path}",
+            content,
+            "python",
+        )
+
+    # --------------------------------------------------------
+    # Validation
+    # --------------------------------------------------------
+
+    logger.write(
+        step_file,
+        "Generation Summary",
+        f"**Files generated:** {len(files)}",
+    )
+
+    if not files:
+
+        logger.write_code(
+            step_file,
+            "ERROR",
+            "LLM returned ZERO usable files.",
+            "text",
+        )
+
+        raise RuntimeError(
+            "LLM returned zero usable files."
+        )
+
+    print()
+    print(
+        f"✅ Total generated: "
+        f"{len(files)} files"
+    )
 
     return {
         "files": files
@@ -265,19 +791,35 @@ and complete content.
 
 
 # ============================================================
-# 8. NODE: REVIEW PROJECT
+# STEP 4
+# REVIEW PROJECT
 # ============================================================
 
-def review_project(state: State):
+def review_project(
+    state: State,
+):
 
-    print("\n")
+    print()
     print("=" * 70)
-    print("🔎 STEP 4: REVIEWING PROJECT")
+    print(
+        "🔎 STEP 4: REVIEWING PROJECT"
+    )
     print("=" * 70)
+
+    step_file = logger.create_step(
+        4,
+        "review_project",
+    )
+
+    # --------------------------------------------------------
+    # Build project text
+    # --------------------------------------------------------
 
     project_text = ""
 
-    for path, content in state["files"].items():
+    for path, content in state[
+        "files"
+    ].items():
 
         project_text += f"""
 
@@ -289,14 +831,25 @@ FILE: {path}
 
 """
 
+    # --------------------------------------------------------
+    # Save project being reviewed
+    # --------------------------------------------------------
+
+    logger.write_code(
+        step_file,
+        "Generated Project Being Reviewed",
+        project_text,
+        "text",
+    )
+
+    # --------------------------------------------------------
+    # Prompt
+    # --------------------------------------------------------
+
     prompt = f"""
 You are a senior Python code reviewer.
 
 Review this complete generated project.
-
-PROJECT:
-
-{project_text}
 
 Check:
 
@@ -312,347 +865,598 @@ Check:
 10. Missing classes
 11. Incorrect file paths
 12. Logical problems
-13. Inconsistent code between files
-
-Provide a detailed review.
+13. Inconsistent code
+14. requirements.txt
+15. README.md
+16. Package structure
 
 If the project is correct, say:
 
 PROJECT_VALID
 
-Otherwise explain every problem that must be fixed.
+Otherwise explain every problem
+that must be fixed.
+
+PROJECT:
+
+{project_text}
 """
 
-    response = llm.invoke(prompt)
+    logger.write_code(
+        step_file,
+        "Review Prompt",
+        prompt,
+        "text",
+    )
 
-    print(response.content)
+    # --------------------------------------------------------
+    # Review
+    # --------------------------------------------------------
+
+    try:
+
+        response = llm.invoke(
+            prompt
+        )
+
+    except Exception as e:
+
+        logger.write_code(
+            step_file,
+            "ERROR",
+            f"{type(e).__name__}: {e}",
+            "text",
+        )
+
+        raise
+
+    review = response.content
+
+    # --------------------------------------------------------
+    # Save review
+    # --------------------------------------------------------
+
+    logger.write_code(
+        step_file,
+        "Review Result",
+        review,
+        "text",
+    )
+
+    print()
+    print(
+        review
+    )
 
     return {
-        "review": response.content
+        "review": review
     }
 
 
 # ============================================================
-# 9. NODE: SAVE PROJECT
+# STEP 5
+# SAVE PROJECT
 # ============================================================
 
-def save_project(state: State):
+def save_project(
+    state: State,
+):
 
-    print("\n")
+    print()
     print("=" * 70)
-    print("💾 STEP 5: SAVING PROJECT")
+    print(
+        "💾 STEP 5: SAVING PROJECT"
+    )
     print("=" * 70)
+
+    step_file = logger.create_step(
+        5,
+        "save_project",
+    )
 
     project_path = Path(
         state["output_path"]
-    )
+    ).resolve()
 
     project_path.mkdir(
         parents=True,
-        exist_ok=True
+        exist_ok=True,
     )
 
-    for relative_path, content in state["files"].items():
+    files = state.get(
+        "files",
+        {},
+    )
 
-        file_path = (
-            project_path / relative_path
+    # --------------------------------------------------------
+    # Save destination
+    # --------------------------------------------------------
+
+    logger.write(
+        step_file,
+        "Output Directory",
+        f"`{project_path}`",
+    )
+
+    logger.write(
+        step_file,
+        "Files To Save",
+        "\n".join(
+            f"- `{path}`"
+            for path in files
+        ),
+    )
+
+    # --------------------------------------------------------
+    # Validate
+    # --------------------------------------------------------
+
+    if not files:
+
+        logger.write_code(
+            step_file,
+            "ERROR",
+            "No generated files exist.",
+            "text",
         )
 
-        # Prevent accidental absolute paths
-        if file_path.is_absolute():
+        raise RuntimeError(
+            "No files available to save."
+        )
 
-            print(
-                f"⚠️ Skipping unsafe path: "
-                f"{relative_path}"
+    saved_files = []
+
+    # --------------------------------------------------------
+    # Save every generated file
+    # --------------------------------------------------------
+
+    for relative_path, content in files.items():
+
+        relative_path = Path(
+            relative_path
+        )
+
+        # ----------------------------------------------------
+        # Prevent absolute paths
+        # ----------------------------------------------------
+
+        if relative_path.is_absolute():
+
+            logger.write(
+                step_file,
+                "Skipped Unsafe File",
+                f"`{relative_path}` is absolute.",
             )
 
             continue
 
+        file_path = (
+            project_path /
+            relative_path
+        ).resolve()
+
+        # ----------------------------------------------------
+        # Prevent ../ path traversal
+        # ----------------------------------------------------
+
+        try:
+
+            file_path.relative_to(
+                project_path
+            )
+
+        except ValueError:
+
+            logger.write(
+                step_file,
+                "Skipped Unsafe File",
+                f"`{relative_path}` escapes project directory.",
+            )
+
+            continue
+
+        # ----------------------------------------------------
+        # Create directory
+        # ----------------------------------------------------
+
         file_path.parent.mkdir(
             parents=True,
-            exist_ok=True
+            exist_ok=True,
         )
+
+        # ----------------------------------------------------
+        # Write
+        # ----------------------------------------------------
 
         file_path.write_text(
             content,
-            encoding="utf-8"
+            encoding="utf-8",
+        )
+
+        saved_files.append(
+            relative_path.as_posix()
         )
 
         print(
             f"   📄 Saved: {file_path}"
         )
 
-    print("\n✅ PROJECT SAVED")
+        logger.write(
+            step_file,
+            "Saved File",
+            f"✅ `{relative_path}`",
+        )
+
+    # --------------------------------------------------------
+    # Save analysis
+    # --------------------------------------------------------
+
+    analysis_file = (
+        project_path /
+        "analysis.json"
+    )
+
+    analysis_file.write_text(
+        json.dumps(
+            {
+                "analysis":
+                    state["analysis"]
+            },
+            indent=4,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    logger.write(
+        step_file,
+        "Saved Metadata",
+        "✅ `analysis.json`",
+    )
+
+    # --------------------------------------------------------
+    # Save structure
+    # --------------------------------------------------------
+
+    structure_file = (
+        project_path /
+        "project_structure.json"
+    )
+
+    structure_file.write_text(
+        json.dumps(
+            state[
+                "project_structure"
+            ],
+            indent=4,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    logger.write(
+        step_file,
+        "Saved Metadata",
+        "✅ `project_structure.json`",
+    )
+
+    # --------------------------------------------------------
+    # Save review
+    # --------------------------------------------------------
+
+    review_file = (
+        project_path /
+        "review.txt"
+    )
+
+    review_file.write_text(
+        state.get(
+            "review",
+            "",
+        ),
+        encoding="utf-8",
+    )
+
+    logger.write(
+        step_file,
+        "Saved Metadata",
+        "✅ `review.txt`",
+    )
+
+    # --------------------------------------------------------
+    # Verify actual disk
+    # --------------------------------------------------------
+
+    actual_files = []
+
+    for path in project_path.rglob("*"):
+
+        if path.is_file():
+
+            actual_files.append(
+                path
+            )
+
+    disk_files = []
+
+    for path in sorted(
+        actual_files
+    ):
+
+        relative = path.relative_to(
+            project_path
+        )
+
+        disk_files.append(
+            f"- `{relative}`"
+        )
+
+    logger.write(
+        step_file,
+        "Final Files On Disk",
+        "\n".join(
+            disk_files
+        ),
+    )
+
+    logger.write(
+        step_file,
+        "Final Summary",
+        f"""
+**Generated files:** {len(files)}
+
+**Saved files:** {len(saved_files)}
+
+**Files physically on disk:** {len(actual_files)}
+
+**Project location:** `{project_path}`
+""",
+    )
+
+    print()
+    print(
+        f"✅ {len(saved_files)} generated files saved"
+    )
+
     print(
         f"📁 Location: {project_path}"
     )
 
     return {
-        "output_path": str(project_path)
+        "output_path":
+            str(project_path),
+
+        "saved_files":
+            len(saved_files),
     }
 
 
 # ============================================================
-# 10. BUILD LANGGRAPH
+# BUILD LANGGRAPH
 # ============================================================
 
 def build_graph():
 
-    graph = StateGraph(State)
+    graph = StateGraph(
+        State
+    )
 
+    # --------------------------------------------------------
     # Nodes
+    # --------------------------------------------------------
 
     graph.add_node(
         "analyze",
-        analyze_transcript
+        analyze_transcript,
     )
 
     graph.add_node(
         "design_project",
-        design_project
+        design_project,
     )
 
     graph.add_node(
         "generate_files",
-        generate_files
+        generate_files,
     )
 
     graph.add_node(
         "review",
-        review_project
+        review_project,
     )
 
     graph.add_node(
         "save_project",
-        save_project
+        save_project,
     )
 
+    # --------------------------------------------------------
     # Edges
+    # --------------------------------------------------------
 
     graph.add_edge(
         START,
-        "analyze"
+        "analyze",
     )
 
     graph.add_edge(
         "analyze",
-        "design_project"
+        "design_project",
     )
 
     graph.add_edge(
         "design_project",
-        "generate_files"
+        "generate_files",
     )
 
     graph.add_edge(
         "generate_files",
-        "review"
+        "review",
     )
 
     graph.add_edge(
         "review",
-        "save_project"
+        "save_project",
     )
 
     graph.add_edge(
         "save_project",
-        END
+        END,
     )
 
     return graph.compile()
 
 
 # ============================================================
-# 11. RUN GRAPH WITH LIVE PROGRESS
+# RUN GRAPH
 # ============================================================
 
 def run_graph(
     app,
     transcript: str,
-    output_path: str
+    output_path: str,
 ):
 
     initial_state = {
 
-        "transcript": transcript,
+        "transcript":
+            transcript,
 
-        "analysis": "",
+        "analysis":
+            "",
 
-        "project_structure": {},
+        "project_structure":
+            {},
 
-        "files": {},
+        "files":
+            {},
 
-        "review": "",
+        "review":
+            "",
 
-        "output_path": output_path
+        "output_path":
+            output_path,
+
+        "saved_files":
+            0,
     }
 
-    print("\n")
+    print()
     print("=" * 70)
-    print("🚀 YOUTUBE → PYTHON PROJECT AGENT")
+    print(
+        "🚀 YOUTUBE → PYTHON PROJECT AGENT"
+    )
     print("=" * 70)
 
-    print("\nSTART")
+    print()
+    print("START")
     print("  ↓")
 
-    final_state = initial_state.copy()
-
-    for event in app.stream(
-        initial_state,
-        stream_mode="updates"
-    ):
-
-        for node_name, output in event.items():
-
-            print(
-                f"\n▶️ RUNNING NODE: {node_name}"
-            )
-
-            if node_name == "analyze":
-
-                print(
-                    "   ✓ Tutorial understood"
-                )
-
-            elif node_name == "design_project":
-
-                print(
-                    "   ✓ Project structure created"
-                )
-
-            elif node_name == "generate_files":
-
-                print(
-                    f"   ✓ Generated "
-                    f"{len(output.get('files', {}))} files"
-                )
-
-            elif node_name == "review":
-
-                print(
-                    "   ✓ Project reviewed"
-                )
-
-            elif node_name == "save_project":
-
-                print(
-                    "   ✓ Project saved"
-                )
-
-            final_state.update(output)
-
-            print("  ↓")
-
-    print("END")
-
-    print("\n")
-    print("=" * 70)
-    print("🎉 WORKFLOW COMPLETED")
-    print("=" * 70)
-
-    return final_state
-
-
-# ============================================================
-# 12. MAIN
-# ============================================================
-
-if __name__ == "__main__":
-
-    # --------------------------------------------------------
-    # Replace this with your actual YouTube transcript
-    # --------------------------------------------------------
-
-    transcript = """
-    Today we are going to build an AI agent system.
-
-    We will use LangGraph for orchestration.
-
-    We will use Ollama as the local language model.
-
-    First we create a State class.
-
-    Then we create an analyzer agent.
-
-    Then we create a code generator.
-
-    Finally we create a review agent.
-
-    The project should contain separate modules
-    for agents, tools and graph configuration.
-
-    We also create a requirements.txt file.
-    """
-
-    # --------------------------------------------------------
-    # Build graph
-    # --------------------------------------------------------
-
-    app = build_graph()
-
-    print(
-        "\n✅ LangGraph compiled successfully."
+    final_state = (
+        initial_state.copy()
     )
-
-    # --------------------------------------------------------
-    # Save graph image
-    # --------------------------------------------------------
-
-    graph_path = save_graph_png(
-        app,
-        "/home/satvir/youtubetrascipter/langgraph.png"
-    )
-
-    print(
-        f"\n📊 LangGraph saved to:"
-        f"\n{graph_path}"
-    )
-
-    # --------------------------------------------------------
-    # Display graph in Jupyter
-    # --------------------------------------------------------
 
     try:
 
-        display(
-            Image(
-                filename=graph_path
-            )
-        )
+        for event in app.stream(
+            initial_state,
+            stream_mode="updates",
+        ):
 
-    except Exception:
+            for node_name, output in event.items():
+
+                print()
+                print(
+                    f"▶️ RUNNING NODE: "
+                    f"{node_name}"
+                )
+
+                if node_name == "analyze":
+
+                    print(
+                        "   ✓ Tutorial understood"
+                    )
+
+                elif node_name == "design_project":
+
+                    structure = output.get(
+                        "project_structure",
+                        {},
+                    )
+
+                    planned_files = (
+                        structure.get(
+                            "files",
+                            [],
+                        )
+                    )
+
+                    print(
+                        f"   ✓ "
+                        f"{len(planned_files)} "
+                        f"files planned"
+                    )
+
+                elif node_name == "generate_files":
+
+                    generated = output.get(
+                        "files",
+                        {},
+                    )
+
+                    print(
+                        f"   ✓ "
+                        f"{len(generated)} "
+                        f"files generated"
+                    )
+
+                elif node_name == "review":
+
+                    print(
+                        "   ✓ Project reviewed"
+                    )
+
+                elif node_name == "save_project":
+
+                    print(
+                        f"   ✓ Saved "
+                        f"{output.get('saved_files', 0)} "
+                        f"files"
+                    )
+
+                final_state.update(
+                    output
+                )
+
+                print(
+                    "  ↓"
+                )
+
+    except Exception as e:
+
+        print()
+        print("=" * 70)
+        print(
+            "❌ WORKFLOW FAILED"
+        )
+        print("=" * 70)
 
         print(
-            "Graph image saved successfully."
+            f"{type(e).__name__}: {e}"
         )
 
-    # --------------------------------------------------------
-    # Run workflow
-    # --------------------------------------------------------
-
-    result = run_graph(
-
-        app,
-
-        transcript,
-
-        "/home/satvir/Downloads/TestCreation"
-    )
-
-    # --------------------------------------------------------
-    # Print generated files
-    # --------------------------------------------------------
-
-    print("\n")
-    print("=" * 70)
-    print("📁 GENERATED PROJECT")
-    print("=" * 70)
-
-    for file_path in result.get(
-        "files",
-        {}
-    ):
-
-        print(
-            f"   📄 {file_path}"
+        # Create failure log
+        error_file = (
+            STEPS_PATH /
+            "99_workflow_error.md"
         )
+
+        error_file.write_text(
+            f"""# Workflow Error
+            **Time:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+            ---
+            ## Error Type
+
+            `{type(e).__name__}`
+            ## Error
+            ```text{e}
