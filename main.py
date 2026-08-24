@@ -20,5 +20,3 @@ if __name__ == "__main__":
     print("📁 GENERATED PROJECT")
     print("=" * 70)
 
-    for file_path in result.get("files",{}):
-        print(f"   📄 {file_path}")
