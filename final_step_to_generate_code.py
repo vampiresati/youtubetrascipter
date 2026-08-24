@@ -27,7 +27,7 @@ class State(BaseModel):
     where_to_save_transcript:str="transcript.txt"
     transcript: str = ""
     transcription_md_file_str: str = ""
-    p
+    python_code_transcript:str=""
     output_file: str = ""
 
 
@@ -154,6 +154,58 @@ Markdown document.
 )
 
 
+prompt2= ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+
+            """
+You are an expert technical senior Python developer read markdown down .
+Your task is to read a video transcript and read transcript markdown and converting this coding markdown
+IMPORTANT:
+- Use only information supported by the transcript.
+- use markup to generate code
+- Do not invent facts.
+- Remove duplicated speech.
+- Correct obvious speech-to-text errors when the meaning
+  is clear.
+- Preserve important technical names.
+- Make the result useful for a developer.
+- Use Markdown headings.
+- Use bullet lists.
+- Use tables where useful.
+- Use code blocks for code.
+- Use Mermaid diagrams for workflows where useful.
+- Return ONLY Markdown.
+"""
+        ),
+
+        (
+            "human",
+
+            """
+Here is the video transcript:
+
+---------------- TRANSCRIPT ----------------
+
+{transcript}
+
+---------------- END TRANSCRIPT -------------
+
+
+---------------- MARKDOWN ------------------
+{transcript_markdown}
+
+_______________  END OF MARKDOWN _____________
+Convert this transcript nto the requested technical
+Markdown document.
+"""
+        )
+
+    ]
+)
+
+
 # ============================================================
 # NODE 1
 # READ TRANSCRIPT
@@ -169,58 +221,24 @@ def get_youtube_transcript(state:State):
 # ============================================================
 
 def analyze_transcript(state: State):
-
-    print()
-    print("=" * 60)
-    print("STEP 2: ANALYZING TRANSCRIPT")
-    print("=" * 60)
-
-    print(
-        f"Transcript characters: "
-        f"{len(state.transcript)}"
-    )
-
-    messages = prompt.format_messages(
-        transcript=state.transcript
-    )
-
-    print()
-    print("Calling Ollama...")
-    print(f"Model: {OLLAMA_MODEL}")
-
+    messages = prompt.format_messages(transcript=state.transcript)
     response = llm.invoke(messages)
-
     markdown = response.content
-
-    # --------------------------------------------------------
-    # Remove accidental markdown fences
-    # --------------------------------------------------------
-
     markdown = markdown.strip()
-
     if markdown.startswith("```markdown"):
-
         markdown = markdown[
             len("```markdown"):
         ]
-
     elif markdown.startswith("```"):
-
         markdown = markdown[
             len("```"):
         ]
-
     if markdown.endswith("```"):
-
         markdown = markdown[
             :-len("```")
         ]
-
     markdown = markdown.strip()
-
     state.transcription_md_file_str = markdown
-
-    print()
     print(
         f"Generated Markdown characters: "
         f"{len(markdown)}"
@@ -228,14 +246,7 @@ def analyze_transcript(state: State):
 
     return state
 
-
-# ============================================================
-# NODE 3
-# SAVE MARKDOWN
-# ============================================================
-
 def save_markdown(state: State):
-
     print()
     print("=" * 60)
     print("STEP 3: SAVING MARKDOWN")
@@ -261,6 +272,49 @@ def save_markdown(state: State):
 
     return state
 
+def save_markdown_python_code(state: State):
+
+    OUTPUT_FILE.write_text(
+        "output_python_code.md",
+        encoding="utf-8"
+    )
+    state.output_file = str(
+        OUTPUT_FILE
+    )
+
+    print(
+        f"Characters: "
+        f"{len(state.python_code_transcript)}"
+    )
+
+    return state
+
+
+def python_code_md_file_generate(state:State):
+    messages = prompt2.format_messages(transcript=state.transcript,transcript_markdown= state.transcription_md_file_str)
+    response = llm.invoke(messages)
+    markdown = response.content
+        markdown = markdown.strip()
+        if markdown.startswith("```markdown"):
+            markdown = markdown[
+                len("```markdown"):
+            ]
+        elif markdown.startswith("```"):
+            markdown = markdown[
+                len("```"):
+            ]
+        if markdown.endswith("```"):
+            markdown = markdown[
+                :-len("```")
+            ]
+        markdown = markdown.strip()
+        state.python_code_transcript = markdown
+        print(
+            f"Generated Markdown characters: "
+            f"{len(markdown)}"
+        )
+        return state
+
 
 # ============================================================
 # BUILD LANGGRAPH
@@ -270,10 +324,16 @@ def build_graph_langchain():
     builder.add_node("get_youtube_transcript",get_youtube_transcript)
     builder.add_node("analyze_transcript",analyze_transcript)
     builder.add_node("save_markdown",save_markdown)
+    builder.add_node("save_markdown_python_code",save_markdown_python_code)
+    builder.add_node("python_code_md_file_generate",python_code_md_file_generate)
+
     builder.add_edge(START,"get_youtube_transcript")
     builder.add_edge("get_youtube_transcript","analyze_transcript")
     builder.add_edge("analyze_transcript","save_markdown")
-    builder.add_edge("save_markdown",END)
+    builder.add_edge("save_markdown","python_code_md_file_generate")
+    builder.add_edge("python_code_md_file_generate","save_markdown_python_code")
+    builder.add_edge("save_markdown_python_code",END)
+
     graph = builder.compile()
     return graph
 
@@ -302,6 +362,7 @@ if __name__ == "__main__":
         f"Markdown characters: "
         f"{len(final_state['transcription_md_file_str'])}"
     )
-
+    print('------python code markdown script -------')
+    print(final_state['save_markdown_python_code'])
     print()
     print("DONE")
