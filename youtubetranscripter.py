@@ -32,16 +32,18 @@ def get_transcript(youtube_url: str):
     return text
 
 def get_transcript_from_url(url="https://www.youtube.com/watch?v=FJHyCAi4GcY",where_to_save="transcript.txt"):
+    transcript=''
     try:
         transcript = get_transcript(url)
-        print("\n--- TRANSCRIPT ---\n")
-        print(transcript)
+#         print("\n--- TRANSCRIPT ---\n")
+#         print(transcript)
 
         with open(where_to_save, "w", encoding="utf-8") as file:
             file.write(transcript)
             print("\nTranscript saved to transcript.txt")
     except Exception as e:
         print("Error:", e)
+    return transcript
 
 if __name__ == "__main__":
     url = input("Enter YouTube URL: ")
