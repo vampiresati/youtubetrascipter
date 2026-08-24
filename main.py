@@ -1,0 +1,15 @@
+from youtubetranscripter import get_transcript_from_url
+from llm_transcripter_to_code import build_graph
+
+
+if __name__ == "__main__":
+    transcript=get_transcript_from_url(url="https://www.youtube.com/watch?v=FJHyCAi4GcY",where_to_save="transcript.txt")
+    app = build_graph()
+    result = app.invoke({
+        "transcript": transcript,
+        "analysis": "",
+        "code": "",
+        "review": "",
+        "output_path": "/home/satvir/Downloads/TestCreation/"
+    })
+
