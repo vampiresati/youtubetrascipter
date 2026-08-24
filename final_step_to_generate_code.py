@@ -723,122 +723,145 @@ def build_graph_langchain():
     return graph
 
 
+prompt3 = ChatPromptTemplate.from_messages(
+    [
+
+        (
+            "system",
+            """You are a senior Python developer and AI enginner.Generate python and save them
+            ---- markdown1----
+            {transcript_md}
+            ----end of markdown1-----
+            ---- markdown2----
+            {output_md}
+            ----end of markdown1-----
+            i need save file in output directory
+            """)
+     ]
+def generate_python_code(transcripted_md="/home/satvir/Downloads/MarkdownSatvir/steps/01_get_youtube_transcript.md",output_md="/home/satvir/Downloads/MarkdownSatvir/steps/05_save_implementation_markdown.md"):
+    messages = prompt3.format_messages(transcript_md=transcripted_md,
+            output_md=(output_md))
+    response = llm.invoke(messages)
+
+
+
+
 # ============================================================
 # MAIN
 # ============================================================
 
 if __name__ == "__main__":
 
-    print()
-    print("=" * 60)
-    print("STARTING LANGGRAPH")
-    print("=" * 60)
-
-    print(
-        f"Output directory: {OUTPUT_PATH}"
-    )
-
-    print(
-        f"Steps directory: {STEPS_PATH}"
-    )
-
-    # --------------------------------------------------------
-    # INITIAL STATE
-    # --------------------------------------------------------
-
-    initial_state = State(
-        video_url=(
-            "https://www.youtube.com/watch?v=FJHyCAi4GcY"
-        ),
-        where_to_save_transcript="transcript.txt"
-    )
-
-    # --------------------------------------------------------
-    # BUILD GRAPH
-    # --------------------------------------------------------
-
-    graph = build_graph_langchain()
-
-    # --------------------------------------------------------
-    # RUN GRAPH
-    # --------------------------------------------------------
-
-    final_state = graph.invoke(
-        initial_state
-    )
-
-    # --------------------------------------------------------
-    # COMPLETED
-    # --------------------------------------------------------
-
-    print()
-    print("=" * 60)
-    print("WORKFLOW COMPLETED")
-    print("=" * 60)
-
-    print()
-    print("Generated files:")
-    print()
-
-    print(
-        f"Transcript:"
-    )
-
-    print(
-        f"  {initial_state.where_to_save_transcript}"
-    )
-
-    print()
-
-    print(
-        f"Technical Markdown:"
-    )
-
-    print(
-        f"  {final_state['output_file']}"
-    )
-
-    print()
-
-    print(
-        f"Implementation Markdown:"
-    )
-
-    print(
-        f"  {final_state['python_output_file']}"
-    )
-
-    print()
-
-    print(
-        f"Technical Markdown characters:"
-    )
-
-    print(
-        f"  {len(final_state['transcription_md_file_str'])}"
-    )
-
-    print()
-
-    print(
-        f"Implementation Markdown characters:"
-    )
-
-    print(
-        f"  {len(final_state['python_code_transcript'])}"
-    )
-
-    print()
-
-    print(
-        f"Step files:"
-    )
-
-    print(
-        f"  {STEPS_PATH}"
-    )
-
-    print()
-    print("=" * 60)
-    print("DONE")
-    print("=" * 60)
+#     print()
+#     print("=" * 60)
+#     print("STARTING LANGGRAPH")
+#     print("=" * 60)
+#
+#     print(
+#         f"Output directory: {OUTPUT_PATH}"
+#     )
+#
+#     print(
+#         f"Steps directory: {STEPS_PATH}"
+#     )
+#
+#     # --------------------------------------------------------
+#     # INITIAL STATE
+#     # --------------------------------------------------------
+#
+#     initial_state = State(
+#         video_url=(
+#             "https://www.youtube.com/watch?v=FJHyCAi4GcY"
+#         ),
+#         where_to_save_transcript="transcript.txt"
+#     )
+#
+#     # --------------------------------------------------------
+#     # BUILD GRAPH
+#     # --------------------------------------------------------
+#
+#     graph = build_graph_langchain()
+#
+#     # --------------------------------------------------------
+#     # RUN GRAPH
+#     # --------------------------------------------------------
+#
+#     final_state = graph.invoke(
+#         initial_state
+#     )
+#
+#     # --------------------------------------------------------
+#     # COMPLETED
+#     # --------------------------------------------------------
+#
+#     print()
+#     print("=" * 60)
+#     print("WORKFLOW COMPLETED")
+#     print("=" * 60)
+#
+#     print()
+#     print("Generated files:")
+#     print()
+#
+#     print(
+#         f"Transcript:"
+#     )
+#
+#     print(
+#         f"  {initial_state.where_to_save_transcript}"
+#     )
+#
+#     print()
+#
+#     print(
+#         f"Technical Markdown:"
+#     )
+#
+#     print(
+#         f"  {final_state['output_file']}"
+#     )
+#
+#     print()
+#
+#     print(
+#         f"Implementation Markdown:"
+#     )
+#
+#     print(
+#         f"  {final_state['python_output_file']}"
+#     )
+#
+#     print()
+#
+#     print(
+#         f"Technical Markdown characters:"
+#     )
+#
+#     print(
+#         f"  {len(final_state['transcription_md_file_str'])}"
+#     )
+#
+#     print()
+#
+#     print(
+#         f"Implementation Markdown characters:"
+#     )
+#
+#     print(
+#         f"  {len(final_state['python_code_transcript'])}"
+#     )
+#
+#     print()
+#
+#     print(
+#         f"Step files:"
+#     )
+#
+#     print(
+#         f"  {STEPS_PATH}"
+#     )
+#
+#     print()
+#     print("=" * 60)
+#     print("DONE")
+#     print("=" * 60)
