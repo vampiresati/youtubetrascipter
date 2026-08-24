@@ -10,7 +10,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from youtubetranscripter import get_transcript_from_url
 
-from IPython.display import Image, display
+from IPython.display import Image, display, Markdown
 
 
 # ============================================================
@@ -48,6 +48,18 @@ SUMMARY_FILE = (
 
 PDF_FILE = (
     OUTPUT_PATH / "summary.pdf"
+)
+
+# ============================================================
+# TRANSCRIPT -> MERMAID FILES
+# ============================================================
+
+MERMAID_FILE = (
+    OUTPUT_PATH / "transcript_workflow.mmd"
+)
+
+MERMAID_MARKDOWN_FILE = (
+    OUTPUT_PATH / "transcript_workflow.md"
 )
 
 
@@ -149,6 +161,16 @@ class State(BaseModel):
     # --------------------------------------------------------
 
     pdf_file: str = ""
+
+    # --------------------------------------------------------
+    # Transcript -> Mermaid
+    # --------------------------------------------------------
+
+    mermaid_code: str = ""
+
+    mermaid_file: str = ""
+
+    mermaid_markdown_file: str = ""
 
 
 # ============================================================
@@ -589,6 +611,296 @@ Create the summary.
 
 
 # ============================================================
+# PROMPT 5
+# TRANSCRIPT -> MERMAID WORKFLOW
+# ============================================================
+
+mermaid_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """
+You are an expert workflow architect, AI agent architect,
+and Mermaid diagram generator.
+
+Your task is to read a YouTube transcript and reconstruct
+the ACTUAL WORKFLOW described by the speaker.
+
+The output will be used as a Mermaid flowchart.
+
+============================================================
+IMPORTANT
+============================================================
+
+Do NOT summarize the transcript.
+
+Do NOT create a simple numbered list.
+
+Instead, understand the workflow and represent its structure.
+
+Identify:
+
+- sequential steps
+- branches
+- decisions
+- conditional paths
+- loops
+- retry loops
+- parallel execution
+- multiple agents
+- tools
+- memory
+- state
+- routers
+- dispatchers
+- specialists
+- workers
+- critics
+- planners
+- executors
+- researchers
+- synthesizers
+- consolidators
+- inputs
+- outputs
+- handoffs between agents
+
+============================================================
+SEQUENTIAL FLOW
+============================================================
+
+For sequential execution use:
+
+A --> B
+
+============================================================
+DECISIONS
+============================================================
+
+If the transcript describes a decision:
+
+A --> B{"Decision?"}
+
+Then create branches:
+
+B -->|Yes| C
+B -->|No| D
+
+============================================================
+LOOPS
+============================================================
+
+If the transcript describes something that repeats:
+
+A --> B
+B --> C{"Approved?"}
+C -->|No| A
+C -->|Yes| D
+
+============================================================
+PARALLEL EXECUTION
+============================================================
+
+If several agents execute independently or in parallel:
+
+A --> B
+A --> C
+A --> D
+
+Then converge:
+
+B --> E
+C --> E
+D --> E
+
+============================================================
+ROUTER / DISPATCHER
+============================================================
+
+For routing:
+
+A --> B{"Question Type?"}
+
+B -->|VAT| C["VAT Specialist"]
+B -->|Corporate Tax| D["Corporate Tax Specialist"]
+B -->|Payroll| E["Payroll Specialist"]
+
+============================================================
+MEMORY / STATE
+============================================================
+
+If the transcript describes memory or state, represent it.
+
+For example:
+
+A["Client Query"]
+    --> B["Client History"]
+    --> C["Client Account Agent"]
+
+============================================================
+MULTIPLE PATTERNS
+============================================================
+
+The transcript may contain multiple AI agent patterns.
+
+Use Mermaid subgraphs when appropriate.
+
+For example:
+
+subgraph P1["Pattern 1 - Single Agent"]
+    A --> B
+end
+
+subgraph P2["Pattern 2 - ReAct"]
+    C --> D
+end
+
+============================================================
+PATTERNS
+============================================================
+
+If supported by the transcript, identify patterns such as:
+
+1. Single Agent
+2. ReAct
+3. Structured Output
+4. Memory Augmented Agent
+5. Reflection / Self Critic
+6. Plan and Execute
+7. Router / Dispatcher
+8. Parallel Research
+9. Orchestrator / Worker
+
+Do not automatically create all nine.
+
+Only create patterns supported by the transcript.
+
+============================================================
+AGENTS
+============================================================
+
+Represent important agents as nodes.
+
+Examples:
+
+["Invoice Agent"]
+["Tax Researcher"]
+["Tax Return Actor"]
+["Tax Return Critic"]
+["Audit Planner"]
+["Document Collector"]
+["Account Reconciler"]
+["Risk Flagger"]
+["VAT Specialist"]
+["Tax Specialist"]
+["Payroll Specialist"]
+["Synthesizer"]
+["Invoice Worker"]
+["Tax Worker"]
+["Report Generator"]
+["Final Consolidator"]
+
+============================================================
+TOOLS
+============================================================
+
+If tools are an important part of the workflow, represent
+them as nodes.
+
+Examples:
+
+["Docling"]
+["Calculate VAT"]
+["Calculate Total"]
+
+============================================================
+VERY IMPORTANT
+============================================================
+
+Do NOT invent workflow relationships.
+
+Only create relationships supported by the transcript.
+
+Correct obvious speech-to-text errors when the meaning
+is clear.
+
+Preserve important technical names such as:
+
+- Google ADK
+- Pydantic
+- Docling
+- Gemini
+- VAT
+- Tax Researcher
+- Invoice Agent
+- Tax Return Actor
+- Tax Return Critic
+- Audit Planner
+- Document Collector
+- Account Reconciler
+- Risk Flagger
+- VAT Specialist
+- Tax Specialist
+- Payroll Specialist
+- Netherlands
+- Germany
+- UK
+- Synthesizer
+- Invoice Worker
+- Tax Worker
+- Report Generator
+- Consolidator
+
+============================================================
+MERMAID SYNTAX
+============================================================
+
+Use:
+
+flowchart TD
+
+Use readable node IDs.
+
+Example:
+
+A["Client Query"]
+
+Avoid special characters that could break Mermaid.
+
+============================================================
+OUTPUT
+============================================================
+
+Return ONLY valid Mermaid code.
+
+Do NOT return markdown fences.
+
+Do NOT provide explanations.
+
+Do NOT provide commentary.
+
+The first line must be:
+
+flowchart TD
+"""
+        ),
+        (
+            "human",
+            """
+================ ORIGINAL TRANSCRIPT ================
+
+{transcript}
+
+================ END TRANSCRIPT =====================
+
+Convert this transcript into a Mermaid workflow graph.
+"""
+        ),
+    ]
+)
+
+
+# ============================================================
 # HELPER
 # CLEAN MARKDOWN
 # ============================================================
@@ -602,6 +914,7 @@ def clean_markdown(
     if markdown.startswith(
         "```markdown"
     ):
+
         markdown = markdown[
             len("```markdown"):
         ].strip()
@@ -609,6 +922,7 @@ def clean_markdown(
     elif markdown.startswith(
         "```"
     ):
+
         markdown = markdown[
             len("```"):
         ].strip()
@@ -616,11 +930,81 @@ def clean_markdown(
     if markdown.endswith(
         "```"
     ):
+
         markdown = markdown[
             :-len("```")
         ].strip()
 
     return markdown
+
+
+# ============================================================
+# HELPER
+# CLEAN MERMAID
+# ============================================================
+
+def clean_mermaid(
+    mermaid: str
+) -> str:
+
+    mermaid = mermaid.strip()
+
+    # --------------------------------------------------------
+    # Remove markdown fences
+    # --------------------------------------------------------
+
+    mermaid = re.sub(
+        r"^```mermaid\s*",
+        "",
+        mermaid,
+        flags=re.IGNORECASE
+    )
+
+    mermaid = re.sub(
+        r"^```\s*",
+        "",
+        mermaid
+    )
+
+    mermaid = re.sub(
+        r"\s*```$",
+        "",
+        mermaid
+    )
+
+    mermaid = mermaid.strip()
+
+    # --------------------------------------------------------
+    # Find flowchart if model added text before it
+    # --------------------------------------------------------
+
+    if not mermaid.lower().startswith(
+        "flowchart"
+    ):
+
+        match = re.search(
+            r"flowchart\s+TD.*",
+            mermaid,
+            flags=re.IGNORECASE | re.DOTALL
+        )
+
+        if match:
+
+            mermaid = match.group(0).strip()
+
+    # --------------------------------------------------------
+    # Validate
+    # --------------------------------------------------------
+
+    if not mermaid.lower().startswith(
+        "flowchart"
+    ):
+
+        raise ValueError(
+            "LLM did not return a Mermaid flowchart."
+        )
+
+    return mermaid
 
 
 # ============================================================
@@ -673,6 +1057,12 @@ def get_youtube_transcript(
             state.where_to_save_transcript
         )
     )
+
+    if not transcript:
+
+        raise ValueError(
+            "YouTube transcript is empty."
+        )
 
     state.transcript = transcript
 
@@ -851,16 +1241,21 @@ def save_pdf_final(
     try:
 
         from reportlab.lib.pagesizes import A4
+
         from reportlab.lib.styles import (
             getSampleStyleSheet,
             ParagraphStyle
         )
+
         from reportlab.platypus import (
             SimpleDocTemplate,
             Paragraph,
             Spacer
         )
-        from reportlab.lib.enums import TA_LEFT
+
+        from reportlab.lib.enums import (
+            TA_LEFT
+        )
 
     except ImportError:
 
@@ -895,9 +1290,11 @@ def save_pdf_final(
         line = line.strip()
 
         if not line:
+
             story.append(
                 Spacer(1, 8)
             )
+
             continue
 
         if line.startswith("# "):
@@ -929,7 +1326,6 @@ def save_pdf_final(
 
         else:
 
-            # Basic markdown cleanup
             text = re.sub(
                 r"\*\*(.*?)\*\*",
                 r"<b>\1</b>",
@@ -1338,413 +1734,66 @@ print("Hello")
 
 
 # ============================================================
-# BUILD LANGGRAPH
+# NODE 11
+# GENERATE MERMAID FROM TRANSCRIPT
 # ============================================================
 
-def build_graph_langchain():
-
-    builder = StateGraph(
-        State
-    )
-
-    # ========================================================
-    # NODES
-    # ========================================================
-
-    builder.add_node(
-        "get_youtube_transcript",
-        get_youtube_transcript
-    )
-
-    builder.add_node(
-        "analyze_transcript",
-        analyze_transcript
-    )
-
-    builder.add_node(
-        "generate_summary",
-        generate_summary
-    )
-
-    builder.add_node(
-        "save_summary",
-        save_summary
-    )
-
-    builder.add_node(
-        "save_pdf_final",
-        save_pdf_final
-    )
-
-    builder.add_node(
-        "save_markdown",
-        save_markdown
-    )
-
-    builder.add_node(
-        "python_code_md_file_generate",
-        python_code_md_file_generate
-    )
-
-    builder.add_node(
-        "save_markdown_python_code",
-        save_markdown_python_code
-    )
-
-    builder.add_node(
-        "generate_python_code",
-        generate_python_code
-    )
-
-    builder.add_node(
-        "save_python_project",
-        save_python_project
-    )
-
-    # ========================================================
-    # START
-    # ========================================================
-
-    builder.add_edge(
-        START,
-        "get_youtube_transcript"
-    )
-
-    # ========================================================
-    # TRANSCRIPT -> ANALYSIS
-    # ========================================================
-
-    builder.add_edge(
-        "get_youtube_transcript",
-        "analyze_transcript"
-    )
-
-    # ========================================================
-    # SUMMARY BRANCH
-    # ========================================================
-
-    builder.add_edge(
-        "analyze_transcript",
-        "generate_summary"
-    )
-
-    builder.add_edge(
-        "generate_summary",
-        "save_summary"
-    )
-
-    builder.add_edge(
-        "save_summary",
-        "save_pdf_final"
-    )
-
-    # ========================================================
-    # TECHNICAL IMPLEMENTATION BRANCH
-    # ========================================================
-
-    builder.add_edge(
-        "analyze_transcript",
-        "save_markdown"
-    )
-
-    builder.add_edge(
-        "save_markdown",
-        "python_code_md_file_generate"
-    )
-
-    builder.add_edge(
-        "python_code_md_file_generate",
-        "save_markdown_python_code"
-    )
-
-    builder.add_edge(
-        "save_markdown_python_code",
-        "generate_python_code"
-    )
-
-    builder.add_edge(
-        "generate_python_code",
-        "save_python_project"
-    )
-
-    # ========================================================
-    # FINAL
-    # ========================================================
-
-    # Both branches terminate independently.
-    # LangGraph waits for all reachable branches.
-
-    builder.add_edge(
-        "save_pdf_final",
-        END
-    )
-
-    builder.add_edge(
-        "save_python_project",
-        END
-    )
-
-    graph = builder.compile()
-
-    return graph
-
-
-# ============================================================
-# DISPLAY LANGGRAPH MERMAID
-# ============================================================
-
-def display_langgraph(
-    graph
+def generate_mermaid_from_transcript(
+    state: State
 ):
 
     print()
-    print("=" * 70)
-    print("LANGGRAPH MERMAID")
-    print("=" * 70)
+    print("=" * 60)
+    print("STEP 11: GENERATE MERMAID FROM TRANSCRIPT")
+    print("=" * 60)
 
-    # --------------------------------------------------------
-    # Generate Mermaid source
-    # --------------------------------------------------------
-
-    mermaid_code = (
-        graph.get_graph().draw_mermaid()
+    print(
+        "Sending original transcript to LLM..."
     )
 
-    print()
-    print(mermaid_code)
-
-    # --------------------------------------------------------
-    # Display Mermaid directly in IPython
-    # --------------------------------------------------------
-
-    try:
-
-        from IPython.display import Markdown
-
-        display(
-            Markdown(
-                "```mermaid\n"
-                + mermaid_code
-                + "\n```"
-            )
-        )
-
-    except Exception as exc:
-
-        print(
-            f"Could not display Mermaid: {exc}"
-        )
-
-    # --------------------------------------------------------
-    # Try generating PNG
-    # --------------------------------------------------------
-
-    try:
-
-        png_data = (
-            graph.get_graph().draw_mermaid_png()
-        )
-
-        GRAPH_IMAGE_PATH.write_bytes(
-            png_data
-        )
-
-        print()
-        print(
-            f"Graph PNG saved to:"
-        )
-
-        print(
-            GRAPH_IMAGE_PATH
-        )
-
-        display(
-            Image(
-                data=png_data
-            )
-        )
-
-    except Exception as exc:
-
-        print()
-        print(
-            "PNG graph generation skipped."
-        )
-
-        print(
-            f"Reason: {exc}"
-        )
-
-
-# ============================================================
-# MAIN
-# ============================================================
-
-if __name__ == "__main__":
-
-    print()
-    print("=" * 70)
-    print(
-        "STARTING LANGGRAPH AI CODE GENERATION WORKFLOW"
+    messages = mermaid_prompt.format_messages(
+        transcript=state.transcript
     )
-    print("=" * 70)
 
-    print()
-    print(
-        f"Output directory:\n"
-        f"{OUTPUT_PATH}"
+    response = llm.invoke(
+        messages
+    )
+
+    mermaid = clean_mermaid(
+        response.content
+    )
+
+    state.mermaid_code = (
+        mermaid
     )
 
     print()
     print(
-        f"Steps directory:\n"
-        f"{STEPS_PATH}"
-    )
-
-    print()
-    print(
-        f"Generated project directory:\n"
-        f"{GENERATED_PROJECT_PATH}"
-    )
-
-    # ========================================================
-    # INITIAL STATE
-    # ========================================================
-
-    initial_state = State(
-        video_url=(
-            "https://www.youtube.com/watch?v=FJHyCAi4GcY"
-        ),
-        where_to_save_transcript=(
-            "transcript.txt"
-        )
-    )
-
-    # ========================================================
-    # BUILD GRAPH
-    # ========================================================
-
-    graph = build_graph_langchain()
-
-    # ========================================================
-    # DISPLAY GRAPH
-    # ========================================================
-
-    display_langgraph(
-        graph
-    )
-
-    # ========================================================
-    # RUN GRAPH
-    # ========================================================
-
-    final_state = graph.invoke(
-        initial_state
-    )
-
-    # ========================================================
-    # COMPLETED
-    # ========================================================
-
-    print()
-    print("=" * 70)
-    print("WORKFLOW COMPLETED")
-    print("=" * 70)
-
-    print()
-
-    print(
-        "Summary:"
+        "Generated Mermaid:"
     )
 
     print(
-        f"  {final_state.get('summary_file')}"
-    )
-
-    print()
-
-    print(
-        "PDF:"
+        "-" * 60
     )
 
     print(
-        f"  {final_state.get('pdf_file')}"
-    )
-
-    print()
-
-    print(
-        "Technical Markdown:"
+        mermaid
     )
 
     print(
-        f"  {final_state.get('output_file')}"
+        "-" * 60
     )
 
-    print()
+    save_step(
+        11,
+        "generate_mermaid_from_transcript",
+        f"""# Step 11 - Generate Mermaid From Transcript
 
-    print(
-        "Implementation Markdown:"
-    )
+## Video
 
-    print(
-        f"  {final_state.get('python_output_file')}"
-    )
+{state.video_url}
 
-    print()
+## Mermaid
 
-    print(
-        "Generated project:"
-    )
-
-    print(
-        f"  {final_state.get('generated_project_path')}"
-    )
-
-    # ========================================================
-    # LIST PROJECT FILES
-    # ========================================================
-
-    project_path = Path(
-        final_state[
-            "generated_project_path"
-        ]
-    )
-
-    print()
-    print(
-        "Project files:"
-    )
-
-    for file in sorted(
-        project_path.rglob("*")
-    ):
-
-        if file.is_file():
-
-            print(
-                f"  📄 "
-                f"{file.relative_to(project_path)}"
-            )
-
-    # ========================================================
-    # STEP FILES
-    # ========================================================
-
-    print()
-    print(
-        "Step files:"
-    )
-
-    for file in sorted(
-        STEPS_PATH.glob("*.md")
-    ):
-
-        print(
-            f"  📄 {file.name}"
-        )
-
-    print()
-    print("=" * 70)
-    print("DONE")
-    print("=" * 70)
+```mermaid
+{mermaid}
