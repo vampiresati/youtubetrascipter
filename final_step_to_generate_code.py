@@ -16,7 +16,7 @@ from youtubetranscripter import get_transcript_from_url
 OLLAMA_MODEL = "qwen2.5-coder:7b"
 
 OUTPUT_PATH = Path(
-    "/home/satvir/Downloads/MarkdownSatvir"
+    "/home/satvir/Downloads/MarkdownSatvir2"
 )
 
 STEPS_PATH = OUTPUT_PATH / "steps"
