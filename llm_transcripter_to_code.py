@@ -1451,12 +1451,4 @@ def run_graph(
             "99_workflow_error.md"
         )
 
-        error_file.write_text(
-            f"""# Workflow Error
-            **Time:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-            ---
-            ## Error Type
 
-            `{type(e).__name__}`
-            ## Error
-            ```text{e}
