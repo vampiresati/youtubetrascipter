@@ -36,9 +36,7 @@ GENERATED_PROJECT_PATH = (
     OUTPUT_PATH / "generated_project"
 )
 
-GRAPH_IMAGE_PATH = (
-    OUTPUT_PATH / "langgraph.png"
-)
+
 
 SUMMARY_FILE = (
     OUTPUT_PATH / "summary.md"
@@ -1897,18 +1895,13 @@ def display_langgraph(
             graph.get_graph().draw_mermaid_png()
         )
 
-        GRAPH_IMAGE_PATH.write_bytes(
-            png_data
-        )
+
 
         print()
         print(
             "Graph PNG saved to:"
         )
 
-        print(
-            GRAPH_IMAGE_PATH
-        )
 
         display(
             Image(
