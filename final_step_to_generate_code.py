@@ -18,10 +18,8 @@ from IPython.display import Image, Markdown, display
 # ============================================================
 
 OLLAMA_MODEL = "qwen2.5-coder:7b"
-OLLAMA_MODEL2 = "qwen3-4b"
-
 OUTPUT_PATH = Path(
-    "/home/satvir/Downloads/MarkdownSatvir2"
+    "/home/satvir/Downloads/MarkdownAug25"
 )
 
 STEPS_PATH = OUTPUT_PATH / "steps"
@@ -93,11 +91,6 @@ llm = ChatOllama(
     num_ctx=32768,
 )
 
-llm2 = ChatOllama(
-    model=OLLAMA_MODEL2,
-    temperature=0,
-    num_ctx=32768,
-)
 
 
 # ============================================================
@@ -1917,7 +1910,7 @@ if __name__ == "__main__":
 
     initial_state = State(
         video_url=(
-            "https://www.youtube.com/watch?v=FJHyCAi4GcY"
+              "https://www.youtube.com/watch?v=6OPFiHjFm4o"
         ),
         where_to_save_transcript=(
             "transcript.txt"
