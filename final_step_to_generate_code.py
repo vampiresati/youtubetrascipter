@@ -1359,18 +1359,18 @@ def parse_generated_files(
     project_text: str
 ) -> dict[str, str]:
 
+    files = {}
+
     pattern = re.compile(
         r"===== FILE:\s*(.*?)\s*=====\s*"
         r"(.*?)"
-        r"\s*===== END FILE =====",
+        r"(?=\s*===== END FILE =====)",
         re.DOTALL
     )
 
     matches = pattern.findall(
         project_text
     )
-
-    files = {}
 
     for file_path, content in matches:
 
@@ -1379,6 +1379,57 @@ def parse_generated_files(
         content = content.strip()
 
         if file_path:
+
+            files[file_path] = content
+
+    if files:
+
+        return files
+
+    # Fallback for models that ignore the required FILE wrapper and
+    # instead return fenced code blocks that start with a path marker
+    # such as "# src/main.py".
+    fence_pattern = re.compile(
+        r"```[^\n]*\n(.*?)```",
+        re.DOTALL
+    )
+
+    fence_blocks = fence_pattern.findall(
+        project_text
+    )
+
+    path_pattern = re.compile(
+        r"^\s*#\s*([A-Za-z0-9_.\-/]+)\s*$"
+    )
+
+    for block in fence_blocks:
+
+        block = block.strip()
+
+        if not block:
+
+            continue
+
+        lines = block.splitlines()
+
+        if not lines:
+
+            continue
+
+        match = path_pattern.match(
+            lines[0]
+        )
+
+        if not match:
+
+            continue
+
+        file_path = match.group(1).strip()
+        content = "\n".join(
+            lines[1:]
+        ).strip()
+
+        if file_path and content:
 
             files[file_path] = content
 
